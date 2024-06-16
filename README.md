@@ -1,6 +1,5 @@
 # Beanstalk Envs Action
 
-[![GitHub Super-Linter](https://github.com/basal-luke/beanstalk-envs-action/actions/workflows/linter.yml/badge.svg)](https://github.com/super-linter/super-linter)
 ![CI](https://github.com/basal-luke/beanstalk-envs-action/actions/workflows/ci.yml/badge.svg)
 [![Check dist/](https://github.com/basal-luke/beanstalk-envs-action/actions/workflows/check-dist.yml/badge.svg)](https://github.com/basal-luke/beanstalk-envs-action/actions/workflows/check-dist.yml)
 [![CodeQL](https://github.com/basal-luke/beanstalk-envs-action/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/basal-luke/beanstalk-envs-action/actions/workflows/codeql-analysis.yml)
