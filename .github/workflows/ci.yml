@@ -58,7 +58,7 @@ jobs:
         uses: ./
         with:
           json: '{ "JSON_VAR": "hello" }'
-          ebx_INLINE_VAR: 'inline' 
+          ebx_INLINE_VAR: 'inline'
 
       - name: Print Output
         id: output

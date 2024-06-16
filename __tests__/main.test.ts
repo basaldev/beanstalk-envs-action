@@ -81,7 +81,9 @@ describe('action', () => {
 
     expect(debugMock).toHaveBeenNthCalledWith(
       1,
-      expect.stringContaining(`${userSpecifiedDirectory}/${userSpecifiedFilename}`)
+      expect.stringContaining(
+        `${userSpecifiedDirectory}/${userSpecifiedFilename}`
+      )
     );
     expect(errorMock).not.toHaveBeenCalled();
   });
