@@ -1,7 +1,7 @@
 {
   "name": "beanstalk-envs-action",
   "description": "GitHub action to create envvars.config files for AWS Beanstalk deployments",
-  "version": "0.0.0",
+  "version": "1.0.0-alpha",
   "author": "",
   "private": true,
   "homepage": "https://github.com/basal-luke/beanstalk-envs-action",
