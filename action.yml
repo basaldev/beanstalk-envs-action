@@ -1,24 +1,32 @@
-name: 'The name of your action here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'beanstalk-ens-action'
+description:
+  'Create a envvars.config file for AWS Elastic Beanstalk deployments'
+author: 'luke@basal.dev'
 
-# Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: 'heart'
-  color: 'red'
+  icon: 'file-plus'
+  color: 'black'
 
-# Define your inputs here.
 inputs:
-  milliseconds:
-    description: 'Your input description here'
-    required: true
-    default: '1000'
+  filename:
+    description: 'The filename for the envfile'
+    default: 'envvars.config'
+  directory:
+    description: 'The directory to put the envfile in'
+    default: '.ebextensions'
+  fail_on_empty:
+    description: 'Fail if an env value is empty'
+    default: 'false'
+  sort_keys:
+    description: 'Sort the keys alphabetically'
+    default: 'false'
+  json:
+    description: 'JSON representation of your environment variable key/values'
 
-# Define your outputs here.
 outputs:
-  time:
-    description: 'Your output description here'
+  result:
+    description: 'envvars.config file'
 
 runs:
-  using: node20
-  main: dist/index.js
+  using: 'node20'
+  main: 'dist/index.js'

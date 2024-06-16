@@ -1,26 +1,35 @@
-import * as core from '@actions/core'
-import { wait } from './wait'
+import * as core from '@actions/core';
+import * as fs from 'fs';
 
-/**
- * The main function for the action.
- * @returns {Promise<void>} Resolves when the action is complete.
- */
-export async function run(): Promise<void> {
+import { extractEntries, getOutputPath } from './utils';
+import { ebextensionsEnvVarsDefaultFormatter } from './formatters';
+
+export async function run() {
   try {
-    const ms: string = core.getInput('milliseconds')
+    const directory = core.getInput('directory') || '.ebextensions';
+    const fileName = core.getInput('filename') || 'envvars.config';
+    const jsonInput = core.getInput('json') || '{}';
+    const outputPath = getOutputPath(directory, fileName);
+    const shouldSort = core.getInput('sort_keys') || 'false';
+    const shouldFailOnEmpty = core.getInput('fail_on_empty');
 
-    // Debug logs are only output if the `ACTIONS_STEP_DEBUG` secret is true
-    core.debug(`Waiting ${ms} milliseconds ...`)
+    const entries = extractEntries(
+      jsonInput,
+      process.env,
+      Boolean(shouldSort),
+      Boolean(shouldFailOnEmpty)
+    );
+    if (entries.length < 1) throw new Error('No valid entries were found');
 
-    // Log the current timestamp, wait, then log the new timestamp
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
+    const output = ebextensionsEnvVarsDefaultFormatter(entries);
 
-    // Set outputs for other workflow steps to use
-    core.setOutput('time', new Date().toTimeString())
+    core.debug(`Creating file: ${outputPath}`);
+    core.setOutput('result', output);
+    fs.writeFileSync(outputPath, output);
   } catch (error) {
-    // Fail the workflow run if an error occurs
-    if (error instanceof Error) core.setFailed(error.message)
+    if (error instanceof Error) {
+      core.debug(`[main] Error: ${error.message}`);
+      core.setFailed(`[main] Error: ${error.message}`);
+    }
   }
 }

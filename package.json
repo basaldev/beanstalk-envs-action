@@ -1,16 +1,16 @@
 {
-  "name": "typescript-action",
-  "description": "GitHub Actions TypeScript template",
+  "name": "beanstalk-envs-action",
+  "description": "GitHub action to create envvars.config files for AWS Beanstalk deployments",
   "version": "0.0.0",
   "author": "",
   "private": true,
-  "homepage": "https://github.com/actions/typescript-action",
+  "homepage": "https://github.com/basal-luke/beanstalk-envs-action",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/actions/typescript-action.git"
+    "url": "git+https://github.com/basal-luke/beanstalk-envs-action.git"
   },
   "bugs": {
-    "url": "https://github.com/actions/typescript-action/issues"
+    "url": "https://github.com/basal-luke/tbeanstalk-envs-action/issues"
   },
   "keywords": [
     "actions",
