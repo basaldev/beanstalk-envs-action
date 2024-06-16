@@ -1,4 +1,3 @@
-import { Entry } from '../src/types';
 import * as utils from '../src/utils';
 
 let originalProcessEnv: NodeJS.ProcessEnv;
@@ -59,7 +58,7 @@ describe('utils: findDuplicateEntries', () => {
 
 describe('utils: extractEntries', () => {
   describe('success', () => {
-    it('should return parsed json in { key: string; value: any }[] format', () => {
+    it('should return parsed json in { key: string; value: any }[] format (single item)', () => {
       const jsonInput = { my_var_key: 'json_test' };
       const result = utils.extractEntries(
         JSON.stringify(jsonInput),
@@ -68,7 +67,7 @@ describe('utils: extractEntries', () => {
       expect(result).toEqual([{ key: 'my_var_key', value: 'json_test' }]);
     });
 
-    it('should return parsed json in { key: string; value: any }[] format', () => {
+    it('should return parsed json in { key: string; value: any }[] format (multiple items)', () => {
       const jsonInput = {
         my_var_key_1: 'mock_value_1',
         my_var_key_2: 'mock_value_2'
@@ -146,12 +145,12 @@ describe('utils: extractEntries', () => {
   });
 
   describe('error handling', () => {
-    it('should return an empty array when invalid json is passed', () => {
+    it('should return an empty array when invalid json is passed (invalid ,)', () => {
       const result = utils.extractEntries('{},', process.env);
       expect(result).toEqual([]);
     });
 
-    it('should return an empty array when invalid json is passed', () => {
+    it('should return an empty array when invalid json is passed (missing quotes)', () => {
       const result = utils.extractEntries(
         `{ missing_quotes: 'missing_closing_quote }`,
         process.env
