@@ -24927,7 +24927,7 @@ exports["default"] = _default;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ENVVARS_FILE_HEADER = exports.YAML_ENTRY_PREFIX = void 0;
-exports.YAML_ENTRY_PREFIX = 'INPUT_ENTRY_';
+exports.YAML_ENTRY_PREFIX = 'INPUT_EBX_';
 exports.ENVVARS_FILE_HEADER = 'option_settings:\n';
 
 
@@ -24939,23 +24939,21 @@ exports.ENVVARS_FILE_HEADER = 'option_settings:\n';
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.elasticBeanstalkEnvsFormatter = exports.dotEnvFormatter = void 0;
+exports.ebextensionsEnvVarsDefaultFormatter = void 0;
 const constants_1 = __nccwpck_require__(9042);
-function dotEnvFormatter(envs) {
-    return envs.reduce((prev, { key, value }) => {
-        const item = `${key}=${value}\n`;
-        return prev + item;
-    }, '');
-}
-exports.dotEnvFormatter = dotEnvFormatter;
-function elasticBeanstalkEnvsFormatter(envs) {
-    return envs.reduce((prev, { key, value }) => {
+/**
+ * Format data into default envvars.config format
+ * @param entries
+ * @returns
+ */
+function ebextensionsEnvVarsDefaultFormatter(entries) {
+    return entries.reduce((prev, { key, value }) => {
         const name = `  - option_name: ${key}\n`;
         const valueStr = `    value: ${value}\n`;
         return prev + name + valueStr;
     }, constants_1.ENVVARS_FILE_HEADER);
 }
-exports.elasticBeanstalkEnvsFormatter = elasticBeanstalkEnvsFormatter;
+exports.ebextensionsEnvVarsDefaultFormatter = ebextensionsEnvVarsDefaultFormatter;
 
 
 /***/ }),
@@ -24992,38 +24990,29 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.run = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const fs = __importStar(__nccwpck_require__(7147));
-const path = __importStar(__nccwpck_require__(1017));
 const utils_1 = __nccwpck_require__(1314);
 const formatters_1 = __nccwpck_require__(525);
 async function run() {
     try {
         const directory = core.getInput('directory') || '.ebextensions';
-        const fileName = core.getInput('file_name') || 'envvars.config';
-        let filePath = process.env['GITHUB_WORKSPACE'] || '.';
-        if (!filePath || filePath === 'None') {
-            filePath = '.';
-        }
-        if (!directory) {
-            filePath = path.join(filePath, fileName);
-        }
-        else if (directory.startsWith('/')) {
-            throw new Error('Absolute paths are not allowed. Please use a relative path.');
-        }
-        else if (directory.startsWith('./')) {
-            filePath = path.join(filePath, directory.slice(2), fileName);
-        }
-        else {
-            filePath = path.join(filePath, directory, fileName);
-        }
-        const entries = (0, utils_1.extractEntries)();
-        const envFile = (0, formatters_1.elasticBeanstalkEnvsFormatter)(entries);
-        core.debug(`Creating file: ${filePath}`);
-        fs.writeFileSync(filePath, envFile);
-        core.setOutput('result', envFile);
+        const fileName = core.getInput('filename') || 'envvars.config';
+        const jsonInput = core.getInput('json') || '{}';
+        const outputPath = (0, utils_1.getOutputPath)(directory, fileName);
+        const shouldSort = core.getInput('sort_keys') || 'false';
+        const shouldFailOnEmpty = core.getInput('fail_on_empty');
+        const entries = (0, utils_1.extractEntries)(jsonInput, process.env, Boolean(shouldSort), Boolean(shouldFailOnEmpty));
+        if (entries.length < 1)
+            throw new Error('No valid entries were found');
+        const output = (0, formatters_1.ebextensionsEnvVarsDefaultFormatter)(entries);
+        core.debug(`Creating file: ${outputPath}`);
+        core.setOutput('result', output);
+        fs.writeFileSync(outputPath, output);
     }
     catch (error) {
-        if (error instanceof Error)
-            core.setFailed(error.message);
+        if (error instanceof Error) {
+            core.debug(`[main] Error: ${error.message}`);
+            core.setFailed(`[main] Error: ${error.message}`);
+        }
     }
 }
 exports.run = run;
@@ -25060,30 +25049,101 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.extractEntries = void 0;
+exports.sortEntries = exports.findDuplicateEntries = exports.getOutputPath = exports.extractYamlKey = exports.extractEntries = void 0;
 const core = __importStar(__nccwpck_require__(2186));
+const path = __importStar(__nccwpck_require__(1017));
 const constants = __importStar(__nccwpck_require__(9042));
-function extractEntries() {
+/**
+ * Get entries from process.env or from input.json
+ * @returns array of key/values
+ */
+function extractEntries(jsonInput, processEnvs, shouldSort = false, shouldFailOnEmpty = false) {
     try {
-        const jsonInput = core.getInput('json') || '{}';
-        const yamlEntries = Object.keys(process.env)
+        const yamlEntries = Object.keys(processEnvs)
             .filter(key => key.startsWith(constants.YAML_ENTRY_PREFIX))
-            .map(key => ({ key: extractYamlKey(key), value: process.env[key] }));
+            .map(key => ({ key: extractYamlKey(key), value: processEnvs[key] }));
         const jsonEntries = Object.entries(JSON.parse(jsonInput)).map(([key, value]) => ({
             key,
             value
         }));
-        return [...yamlEntries, ...jsonEntries];
+        const duplicateEntries = findDuplicateEntries(yamlEntries, jsonEntries);
+        if (duplicateEntries.length > 0) {
+            throw new Error(`Duplicate keys detected (${duplicateEntries.join(',')})`);
+        }
+        const entries = [...yamlEntries, ...jsonEntries];
+        const emptyEntries = entries.filter(item => !item.value);
+        if (shouldFailOnEmpty && emptyEntries.length > 0) {
+            throw new Error(`Empty entries were found (${emptyEntries.map(entry => entry.key).join(',')})`);
+        }
+        return shouldSort ? sortEntries(entries) : entries;
     }
     catch (error) {
-        core.debug(`[extractInput] Error: ${error}`);
+        error instanceof Error &&
+            core.error(`[extractEntries] Error: ${error.message}`);
         return [];
     }
 }
 exports.extractEntries = extractEntries;
-function extractYamlKey(key) {
-    return key.split(constants.YAML_ENTRY_PREFIX)[1];
+/**
+ * Remove NodeJS attached meta formatting from process.env variables related to action
+ * @param processEnvKey
+ * @returns variable key
+ */
+function extractYamlKey(processEnvKey) {
+    return processEnvKey.split(constants.YAML_ENTRY_PREFIX)[1];
 }
+exports.extractYamlKey = extractYamlKey;
+/**
+ * Calculate sanitized file output path
+ * @param directory
+ * @param filename
+ * @returns path
+ */
+function getOutputPath(directory, filename) {
+    if (directory.startsWith('/')) {
+        throw new Error('Absolute paths are not allowed. Please use a relative path.');
+    }
+    const filePath = process.env['GITHUB_WORKSPACE'] === 'None'
+        ? '.'
+        : process.env['GITHUB_WORKSPACE'] || '.';
+    return path.join(filePath, directory.startsWith('./') ? directory.slice(2) : directory, filename);
+}
+exports.getOutputPath = getOutputPath;
+/**
+ * Util to determine if a user has specified duplicate key/values in the json and yaml input
+ * @param arr1
+ * @param arr2
+ * @returns array of duplicate keys
+ */
+function findDuplicateEntries(arr1, arr2) {
+    const keyMap = new Map();
+    const duplicates = new Set();
+    arr1.forEach(item => {
+        keyMap.set(item.key, true);
+    });
+    arr2.forEach(item => {
+        if (keyMap.has(item.key)) {
+            duplicates.add(item.key);
+        }
+    });
+    return Array.from(duplicates);
+}
+exports.findDuplicateEntries = findDuplicateEntries;
+/**
+ * Sort arrays by key
+ * @param array
+ * @returns sorted array
+ */
+function sortEntries(array) {
+    return array.sort((a, b) => {
+        if (a.key < b.key)
+            return -1;
+        if (a.key > b.key)
+            return 1;
+        return 0;
+    });
+}
+exports.sortEntries = sortEntries;
 
 
 /***/ }),
@@ -26982,12 +27042,8 @@ var __webpack_exports__ = {};
 var exports = __webpack_exports__;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-/**
- * The entrypoint for the action.
- */
 const main_1 = __nccwpck_require__(399);
-// eslint-disable-next-line @typescript-eslint/no-floating-promises
-(0, main_1.run)();
+void (0, main_1.run)();
 
 })();
 
