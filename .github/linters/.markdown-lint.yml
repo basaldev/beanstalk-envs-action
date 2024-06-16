@@ -16,3 +16,5 @@ MD030:
 # Code block style
 MD046:
   style: fenced
+
+MD024: false
