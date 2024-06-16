@@ -57,8 +57,9 @@ jobs:
         id: test-action
         uses: ./
         with:
-          milliseconds: 2000
+          json: '{ "JSON_VAR": "hello" }'
+          ebx_INLINE_VAR: 'inline' 
 
       - name: Print Output
         id: output
-        run: echo "${{ steps.test-action.outputs.time }}"
+        run: echo "${{ steps.test-action.outputs.result }}"
