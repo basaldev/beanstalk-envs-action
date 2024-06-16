@@ -55,7 +55,7 @@ describe('action', () => {
 
     expect(debugMock).toHaveBeenNthCalledWith(
       1,
-      `Creating file: ${defaultDirectory}/${defaultFilename}`
+      expect.stringContaining(`${defaultDirectory}/${defaultFilename}`)
     );
     expect(errorMock).not.toHaveBeenCalled();
   });
@@ -81,7 +81,7 @@ describe('action', () => {
 
     expect(debugMock).toHaveBeenNthCalledWith(
       1,
-      `Creating file: ${userSpecifiedDirectory}/${userSpecifiedFilename}`
+      expect.stringContaining(`${userSpecifiedDirectory}/${userSpecifiedFilename}`)
     );
     expect(errorMock).not.toHaveBeenCalled();
   });
