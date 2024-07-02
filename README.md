@@ -53,7 +53,7 @@ step:
 ```yaml
 steps:
   - name: Generate EnvVars Config
-    uses: basal-luke/beanstalk-envs-action@main
+    uses: basaldev/beanstalk-envs-action@main
     with:
       json: '{"API_KEY": "your_api_key", "OTHER_VAR": "some_value"}'
       directory: '.ebextensions'
