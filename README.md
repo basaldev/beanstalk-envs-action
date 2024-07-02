@@ -1,8 +1,8 @@
 # Beanstalk Envs Action
 
-![CI](https://github.com/basal-luke/beanstalk-envs-action/actions/workflows/ci.yml/badge.svg)
-[![Check dist/](https://github.com/basal-luke/beanstalk-envs-action/actions/workflows/check-dist.yml/badge.svg)](https://github.com/basal-luke/beanstalk-envs-action/actions/workflows/check-dist.yml)
-[![CodeQL](https://github.com/basal-luke/beanstalk-envs-action/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/basal-luke/beanstalk-envs-action/actions/workflows/codeql-analysis.yml)
+![CI](https://github.com/basaldev/beanstalk-envs-action/actions/workflows/ci.yml/badge.svg)
+[![Check dist/](https://github.com/basaldev/beanstalk-envs-action/actions/workflows/check-dist.yml/badge.svg)](https://github.com/basaldev/beanstalk-envs-action/actions/workflows/check-dist.yml)
+[![CodeQL](https://github.com/basaldev/beanstalk-envs-action/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/basaldev/beanstalk-envs-action/actions/workflows/codeql-analysis.yml)
 [![Coverage](./badges/coverage.svg)](./badges/coverage.svg)
 
 This GitHub Action allows for simple creation of `envvars.config` files for AWS
@@ -80,7 +80,7 @@ Actions workflow:
 ```yaml
 steps:
   - name: Generate EnvVars Config
-    uses: basal-luke/beanstalk-envs-action@main
+    uses: basaldev/beanstalk-envs-action@main
     with:
       json: '{"API_KEY": "your_api_key"}'
       ebx_MY_VARIABLE: '123'
