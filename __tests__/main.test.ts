@@ -6,44 +6,54 @@
  * variables following the pattern `INPUT_<INPUT_NAME>`.
  */
 
-import * as core from '@actions/core';
 import * as main from '../src/main';
 import * as constants from '../src/constants';
 
+// Mock file system
 jest.mock('fs', () => ({
   writeFileSync: jest.fn(),
   promises: {
-    access: jest.fn().mockResolvedValue(''),
     writeFile: jest.fn().mockResolvedValue('')
   }
 }));
 
+// Mock AWS SDK to prevent credential loading
+jest.mock('@aws-sdk/client-secrets-manager', () => ({
+  SecretsManagerClient: jest.fn().mockImplementation(() => ({
+    send: jest.fn().mockResolvedValue({
+      SecretString: JSON.stringify({ test: 'value' })
+    })
+  })),
+  GetSecretValueCommand: jest.fn()
+}));
 
-// Mock the GitHub Actions core library
-let debugMock: jest.SpiedFunction<typeof core.debug>;
-let errorMock: jest.SpiedFunction<typeof core.error>;
-let getInputMock: jest.SpiedFunction<typeof core.getInput>;
-let setFailedMock: jest.SpiedFunction<typeof core.setFailed>;
-let setOutputMock: jest.SpiedFunction<typeof core.setOutput>;
+// Mock GitHub Actions core
+jest.mock('@actions/core', () => ({
+  debug: jest.fn(),
+  error: jest.fn(),
+  getInput: jest.fn(),
+  setOutput: jest.fn(),
+  setFailed: jest.fn()
+}));
+
+// Import centralized test utilities after mocks
+import { testUtils, mockInputPatterns } from './mocks';
 
 describe('action', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-
-    debugMock = jest.spyOn(core, 'debug').mockImplementation();
-    errorMock = jest.spyOn(core, 'error').mockImplementation();
-    getInputMock = jest.spyOn(core, 'getInput').mockImplementation();
-    setFailedMock = jest.spyOn(core, 'setFailed').mockImplementation();
-    setOutputMock = jest.spyOn(core, 'setOutput').mockImplementation();
+    testUtils.resetAllMocks();
+    testUtils.cleanupEnvVars();
   });
 
   it('should use default directory and filename', async () => {
     const defaultDirectory = '.ebextensions';
     const defaultFilename = 'envvars.config';
-    getInputMock.mockImplementation(name => {
+    
+    const core = require('@actions/core');
+    core.getInput.mockImplementation((name: string) => {
       switch (name) {
         case 'json':
-          return JSON.stringify({ mock_key: 'mock_value' });
+          return mockInputPatterns.onlyDirectValues.json;
         default:
           return '';
       }
@@ -51,20 +61,22 @@ describe('action', () => {
 
     await main.run();
 
-    expect(debugMock).toHaveBeenNthCalledWith(
+    expect(core.debug).toHaveBeenNthCalledWith(
       1,
       expect.stringContaining(`${defaultDirectory}/${defaultFilename}`)
     );
-    expect(errorMock).not.toHaveBeenCalled();
+    expect(core.error).not.toHaveBeenCalled();
   });
 
   it('should use user inputted values for directory and filename', async () => {
     const userSpecifiedDirectory = 'some-directory';
     const userSpecifiedFilename = 'secrets';
-    getInputMock.mockImplementation(name => {
+    
+    const core = require('@actions/core');
+    core.getInput.mockImplementation((name: string) => {
       switch (name) {
         case 'json':
-          return JSON.stringify({ mock_key: 'mock_value' });
+          return mockInputPatterns.onlyDirectValues.json;
         case 'directory':
           return userSpecifiedDirectory;
         case 'filename':
@@ -76,17 +88,18 @@ describe('action', () => {
 
     await main.run();
 
-    expect(debugMock).toHaveBeenNthCalledWith(
+    expect(core.debug).toHaveBeenNthCalledWith(
       1,
       expect.stringContaining(
         `${userSpecifiedDirectory}/${userSpecifiedFilename}`
       )
     );
-    expect(errorMock).not.toHaveBeenCalled();
+    expect(core.error).not.toHaveBeenCalled();
   });
 
-  it('should user output user inputted json values to file', async () => {
-    getInputMock.mockImplementation(name => {
+  it('should output user inputted json values to file', async () => {
+    const core = require('@actions/core');
+    core.getInput.mockImplementation((name: string) => {
       switch (name) {
         case 'json':
           return JSON.stringify({ HELLO: 'WORLD' });
@@ -97,18 +110,20 @@ describe('action', () => {
 
     await main.run();
 
-    expect(setOutputMock).toHaveBeenNthCalledWith(
+    expect(core.setOutput).toHaveBeenNthCalledWith(
       1,
       'result',
       expect.stringContaining('HELLO')
     );
-    expect(errorMock).not.toHaveBeenCalled();
+    expect(core.error).not.toHaveBeenCalled();
   });
 
   it('should output user inputted yaml entries to file', async () => {
     const mockValue = 'yaml_test';
     const mockKey = 'MY_YAML_KEY';
-    getInputMock.mockImplementation(name => {
+    
+    const core = require('@actions/core');
+    core.getInput.mockImplementation((name: string) => {
       switch (name) {
         case 'json':
           return '';
@@ -117,16 +132,16 @@ describe('action', () => {
       }
     });
 
-    process.env[`${constants.YAML_ENTRY_PREFIX}${mockKey}`] = mockValue;
+    testUtils.setupEnvVars({ [mockKey]: mockValue });
 
     await main.run();
 
-    expect(setOutputMock).toHaveBeenNthCalledWith(
+    expect(core.setOutput).toHaveBeenNthCalledWith(
       1,
       'result',
       expect.stringContaining(mockValue)
     );
-    expect(errorMock).not.toHaveBeenCalled();
+    expect(core.error).not.toHaveBeenCalled();
   });
 
   it('should output user both json and yaml entries to file', async () => {
@@ -134,7 +149,8 @@ describe('action', () => {
     const mockYamlValue = 'yaml_test';
     const mockJson = { MY_JSON_KEY: 'json_test' };
 
-    getInputMock.mockImplementation(name => {
+    const core = require('@actions/core');
+    core.getInput.mockImplementation((name: string) => {
       switch (name) {
         case 'json':
           return JSON.stringify(mockJson);
@@ -143,23 +159,23 @@ describe('action', () => {
       }
     });
 
-    process.env[`${constants.YAML_ENTRY_PREFIX}${mockYamlKey}`] = mockYamlValue;
+    testUtils.setupEnvVars({ [mockYamlKey]: mockYamlValue });
 
     await main.run();
 
-    expect(setOutputMock).toHaveBeenNthCalledWith(
+    expect(core.setOutput).toHaveBeenNthCalledWith(
       1,
       'result',
       expect.stringContaining(`value: ${mockYamlValue}`)
     );
 
-    expect(setOutputMock).toHaveBeenNthCalledWith(
+    expect(core.setOutput).toHaveBeenNthCalledWith(
       1,
       'result',
       expect.stringContaining(`value: ${mockJson.MY_JSON_KEY}`)
     );
 
-    expect(errorMock).not.toHaveBeenCalled();
+    expect(core.error).not.toHaveBeenCalled();
   });
 
   it('should throw an error due to a single duplicate key being defined', async () => {
@@ -167,7 +183,8 @@ describe('action', () => {
     const mockYamlValue = 'yaml_test';
     const mockJson = { MY_DUPLICATE_KEY: 'json_test' };
 
-    getInputMock.mockImplementation(name => {
+    const core = require('@actions/core');
+    core.getInput.mockImplementation((name: string) => {
       switch (name) {
         case 'json':
           return JSON.stringify(mockJson);
@@ -176,13 +193,14 @@ describe('action', () => {
       }
     });
 
-    process.env[`${constants.YAML_ENTRY_PREFIX}${mockYamlKey}`] = mockYamlValue;
+    testUtils.setupEnvVars({ [mockYamlKey]: mockYamlValue });
 
     await main.run();
-    expect(errorMock).toHaveBeenCalledWith(
-      '[extractEntries] Error: Duplicate keys detected (MY_DUPLICATE_KEY)'
+    
+    expect(core.error).toHaveBeenCalledWith(
+      '[extractEntriesDefault] Error: Duplicate keys detected (MY_DUPLICATE_KEY)'
     );
-    expect(setFailedMock).toHaveBeenCalledWith(
+    expect(core.setFailed).toHaveBeenCalledWith(
       '[main] Error: No valid entries were found'
     );
   });
@@ -196,7 +214,8 @@ describe('action', () => {
       ANOTHER_DUPLICATE_KEY: 'mock_value'
     };
 
-    getInputMock.mockImplementation(name => {
+    const core = require('@actions/core');
+    core.getInput.mockImplementation((name: string) => {
       switch (name) {
         case 'json':
           return JSON.stringify(mockJson);
@@ -205,16 +224,158 @@ describe('action', () => {
       }
     });
 
-    process.env[`${constants.YAML_ENTRY_PREFIX}${mockYamlKey}`] = mockYamlValue;
-    process.env[`${constants.YAML_ENTRY_PREFIX}${anotherMockYamlKey}`] =
-      mockYamlValue;
+    testUtils.setupEnvVars({ 
+      [mockYamlKey]: mockYamlValue,
+      [anotherMockYamlKey]: mockYamlValue
+    });
 
     await main.run();
-    expect(errorMock).toHaveBeenCalledWith(
-      '[extractEntries] Error: Duplicate keys detected (MY_DUPLICATE_KEY,ANOTHER_DUPLICATE_KEY)'
+    
+    expect(core.error).toHaveBeenCalledWith(
+      '[extractEntriesDefault] Error: Duplicate keys detected (MY_DUPLICATE_KEY,ANOTHER_DUPLICATE_KEY)'
     );
-    expect(setFailedMock).toHaveBeenCalledWith(
+    expect(core.setFailed).toHaveBeenCalledWith(
       '[main] Error: No valid entries were found'
     );
+  });
+
+  describe('aws_secret_references workflow', () => {
+    it('should use aws_secret_references format and generate both deployment and test configs', async () => {
+      const core = require('@actions/core');
+      core.getInput.mockImplementation((name: string) => {
+        switch (name) {
+          case 'aws_secret_references':
+            return mockInputPatterns.directValuesAndSecretReferences.aws_secret_references;
+          case 'json':
+            return mockInputPatterns.directValuesAndSecretReferences.json;
+          case 'aws_region':
+            return mockInputPatterns.directValuesAndSecretReferences.aws_region;
+          case 'rendered_file_path':
+            return mockInputPatterns.directValuesAndSecretReferences.rendered_file_path;
+          default:
+            return '';
+        }
+      });
+
+      await main.run();
+
+      // Should generate deployment config with SecretManager formatter
+      expect(core.setOutput).toHaveBeenCalledWith(
+        'result',
+        expect.stringContaining('aws:elasticbeanstalk:application:environmentsecrets')
+      );
+      
+      expect(core.setOutput).toHaveBeenCalledWith(
+        'test_config',
+        expect.any(String)
+      );
+
+      expect(core.error).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when aws_secret_references provided but aws_region missing', async () => {
+      const core = require('@actions/core');
+      core.getInput.mockImplementation((name: string) => {
+        switch (name) {
+          case 'aws_secret_references':
+            return mockInputPatterns.directValuesAndSecretReferences.aws_secret_references;
+          case 'json':
+            return mockInputPatterns.directValuesAndSecretReferences.json;
+          case 'aws_region':
+            return ''; // Missing aws_region
+          default:
+            return '';
+        }
+      });
+
+      await main.run();
+
+      expect(core.setFailed).toHaveBeenCalledWith(
+        '[main] Error: aws_region input is required when using aws_secret_references'
+      );
+    });
+
+    it('should throw error due to duplicate keys in aws_secret_references + json', async () => {
+      const core = require('@actions/core');
+      core.getInput.mockImplementation((name: string) => {
+        switch (name) {
+          case 'aws_secret_references':
+            return JSON.stringify({
+              DUPLICATE_KEY: 'projectname-dev:APP_ENV'
+            });
+          case 'json':
+            return JSON.stringify({
+              DUPLICATE_KEY: 'production'
+            });
+          case 'aws_region':
+            return mockInputPatterns.directValuesAndSecretReferences.aws_region;
+          case 'rendered_file_path':
+            return mockInputPatterns.directValuesAndSecretReferences.rendered_file_path;
+          default:
+            return '';
+        }
+      });
+
+      await main.run();
+
+      expect(core.error).toHaveBeenCalledWith(
+        '[extractEntries] Error: Duplicate keys detected (DUPLICATE_KEY)'
+      );
+      expect(core.setFailed).toHaveBeenCalledWith(
+        '[main] Error: No valid entries were found'
+      );
+    });
+
+    it('should handle aws_secret_references only (when there is no json i.e. direct values)', async () => {
+      const core = require('@actions/core');
+      core.getInput.mockImplementation((name: string) => {
+        switch (name) {
+          case 'aws_secret_references':
+            return mockInputPatterns.directValuesAndSecretReferences.aws_secret_references;
+          case 'json':
+            return ''; // No direct values
+          case 'aws_region':
+            return mockInputPatterns.directValuesAndSecretReferences.aws_region;
+          case 'rendered_file_path':
+            return mockInputPatterns.directValuesAndSecretReferences.rendered_file_path;
+          default:
+            return '';
+        }
+      });
+
+      await main.run();
+
+      expect(core.setOutput).toHaveBeenCalledWith(
+        'result',
+        expect.stringContaining('aws:elasticbeanstalk:application:environmentsecrets')
+      );
+
+      expect(core.error).not.toHaveBeenCalled();
+    });
+
+    it('should handle json only (no aws_secret_references)', async () => {
+      const core = require('@actions/core');
+      core.getInput.mockImplementation((name: string) => {
+        switch (name) {
+          case 'aws_secret_references':
+            return ''; // No secret references
+          case 'json':
+            return mockInputPatterns.directValuesAndSecretReferences.json;
+          case 'aws_region':
+            return mockInputPatterns.directValuesAndSecretReferences.aws_region;
+          default:
+            return '';
+        }
+      });
+
+      await main.run();
+
+      expect(core.setOutput).toHaveBeenCalledWith(
+        'result',
+        expect.stringContaining('option_name: NODE_ENV')
+      );
+
+      expect(core.error).not.toHaveBeenCalled();
+    });
   });
 });
