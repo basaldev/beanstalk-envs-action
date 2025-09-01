@@ -18,7 +18,6 @@ jest.mock('fs', () => ({
   }
 }));
 
-const runMock = jest.spyOn(main, 'run');
 
 // Mock the GitHub Actions core library
 let debugMock: jest.SpiedFunction<typeof core.debug>;
@@ -51,7 +50,6 @@ describe('action', () => {
     });
 
     await main.run();
-    expect(runMock).toHaveReturned();
 
     expect(debugMock).toHaveBeenNthCalledWith(
       1,
@@ -77,7 +75,6 @@ describe('action', () => {
     });
 
     await main.run();
-    expect(runMock).toHaveReturned();
 
     expect(debugMock).toHaveBeenNthCalledWith(
       1,
@@ -99,7 +96,6 @@ describe('action', () => {
     });
 
     await main.run();
-    expect(runMock).toHaveReturned();
 
     expect(setOutputMock).toHaveBeenNthCalledWith(
       1,
@@ -124,7 +120,6 @@ describe('action', () => {
     process.env[`${constants.YAML_ENTRY_PREFIX}${mockKey}`] = mockValue;
 
     await main.run();
-    expect(runMock).toHaveReturned();
 
     expect(setOutputMock).toHaveBeenNthCalledWith(
       1,
@@ -151,7 +146,6 @@ describe('action', () => {
     process.env[`${constants.YAML_ENTRY_PREFIX}${mockYamlKey}`] = mockYamlValue;
 
     await main.run();
-    expect(runMock).toHaveReturned();
 
     expect(setOutputMock).toHaveBeenNthCalledWith(
       1,
