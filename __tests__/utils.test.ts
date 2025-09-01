@@ -1,3 +1,6 @@
+/* eslint-disable import/first */
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-var-requires */
 import * as utils from '../src/utils';
 import { ClassifiedEntry } from '../src/types';
 
@@ -215,7 +218,13 @@ describe('utils: extractEntries (aws_secret_references format)', () => {
         JSON.stringify(directValuesInput),
         process.env
       );
-      expect(result).toEqual([{ key: 'my_var_key', value: 'projectname-dev:my_var_key', type: 'aws_secret_reference' }]);
+      expect(result).toEqual([
+        {
+          key: 'my_var_key',
+          value: 'projectname-dev:my_var_key',
+          type: 'aws_secret_reference'
+        }
+      ]);
     });
 
     it('should return parsed secrets and direct values in ClassifiedEntry format (multiple items)', () => {
@@ -231,8 +240,16 @@ describe('utils: extractEntries (aws_secret_references format)', () => {
       );
       expect(result.length).toBe(2);
       expect(result).toEqual([
-        { key: 'my_var_key_1', value: 'projectname-dev:my_var_key_1', type: 'aws_secret_reference' },
-        { key: 'my_var_key_2', value: 'projectname-dev:my_var_key_2', type: 'aws_secret_reference' }
+        {
+          key: 'my_var_key_1',
+          value: 'projectname-dev:my_var_key_1',
+          type: 'aws_secret_reference'
+        },
+        {
+          key: 'my_var_key_2',
+          value: 'projectname-dev:my_var_key_2',
+          type: 'aws_secret_reference'
+        }
       ]);
     });
 
@@ -260,9 +277,21 @@ describe('utils: extractEntries (aws_secret_references format)', () => {
       );
       expect(result.length).toBe(3);
       expect(result).toHaveLength(3);
-      expect(result.find(r => r.key === 'my_var_key_1')).toEqual({ key: 'my_var_key_1', value: 'mock_value_1', type: 'direct_value' });
-      expect(result.find(r => r.key === 'my_var_key_2')).toEqual({ key: 'my_var_key_2', value: 'projectname-dev:my_var_key_2', type: 'aws_secret_reference' });
-      expect(result.find(r => r.key === 'my_var_key_3')).toEqual({ key: 'my_var_key_3', value: 'mock_value_3', type: 'direct_value' });
+      expect(result.find(r => r.key === 'my_var_key_1')).toEqual({
+        key: 'my_var_key_1',
+        value: 'mock_value_1',
+        type: 'direct_value'
+      });
+      expect(result.find(r => r.key === 'my_var_key_2')).toEqual({
+        key: 'my_var_key_2',
+        value: 'projectname-dev:my_var_key_2',
+        type: 'aws_secret_reference'
+      });
+      expect(result.find(r => r.key === 'my_var_key_3')).toEqual({
+        key: 'my_var_key_3',
+        value: 'mock_value_3',
+        type: 'direct_value'
+      });
     });
 
     it('should return a sorted list in ClassifiedEntry format', () => {
@@ -281,7 +310,11 @@ describe('utils: extractEntries (aws_secret_references format)', () => {
       );
       expect(result.length).toBe(4);
       expect(result).toEqual([
-        { key: 'apple', value: 'projectname-dev:apple', type: 'aws_secret_reference' },
+        {
+          key: 'apple',
+          value: 'projectname-dev:apple',
+          type: 'aws_secret_reference'
+        },
         { key: 'banana', value: 'mock_value_2', type: 'direct_value' },
         { key: 'orange', value: 'mock_value_1', type: 'direct_value' },
         { key: 'pineapple', value: 'mock_value_4', type: 'direct_value' }
@@ -294,7 +327,9 @@ describe('utils: extractEntries (aws_secret_references format)', () => {
         JSON.stringify({}),
         process.env
       );
-      expect(result).toEqual([{ key: 'mock_a', value: '', type: 'aws_secret_reference' }]);
+      expect(result).toEqual([
+        { key: 'mock_a', value: '', type: 'aws_secret_reference' }
+      ]);
     });
 
     it('should return entries array even though null string value is passed (fail_on_empty=`false`)', () => {
@@ -303,7 +338,9 @@ describe('utils: extractEntries (aws_secret_references format)', () => {
         JSON.stringify({}),
         process.env
       );
-      expect(result).toEqual([{ key: 'mock_a', value: null, type: 'aws_secret_reference' }]);
+      expect(result).toEqual([
+        { key: 'mock_a', value: null, type: 'aws_secret_reference' }
+      ]);
     });
   });
 
@@ -343,7 +380,9 @@ describe('utils: extractEntries (aws_secret_references format)', () => {
         false,
         shouldFailOnEmpty
       );
-      expect(result).toEqual([{ key: 'mock_a', value: null, type: 'aws_secret_reference' }]);
+      expect(result).toEqual([
+        { key: 'mock_a', value: null, type: 'aws_secret_reference' }
+      ]);
     });
   });
 });
@@ -355,17 +394,37 @@ describe('utils: resolvePartialReferencesToValues', () => {
 
   it('should group entries by secret name and make minimal API calls', async () => {
     const entries: ClassifiedEntry[] = [
-      { key: 'APP_ENV', value: 'projectname-dev-shared-vars:APP_ENVIRONMENT', type: 'aws_secret_reference' as const },
-      { key: 'AUTH_PREFIX', value: 'projectname-dev-shared-vars:AUTH_SERVICE_ENDPOINT_PREFIX', type: 'aws_secret_reference' as const },
-      { key: 'DB_CONN', value: 'projectname-dev-bfb:DATABASE_CONNECTION_STRING', type: 'aws_secret_reference' as const },
-      { key: 'AWS_REGION', value: 'ap-northeast-1', type: 'direct_value' as const },
-      { key: 'NODE_ENV', value: 'projectname-dev-shared-vars:NODE_ENV', type: 'aws_secret_reference' as const }
+      {
+        key: 'APP_ENV',
+        value: 'projectname-dev-shared-vars:APP_ENVIRONMENT',
+        type: 'aws_secret_reference' as const
+      },
+      {
+        key: 'AUTH_PREFIX',
+        value: 'projectname-dev-shared-vars:AUTH_SERVICE_ENDPOINT_PREFIX',
+        type: 'aws_secret_reference' as const
+      },
+      {
+        key: 'DB_CONN',
+        value: 'projectname-dev-bfb:DATABASE_CONNECTION_STRING',
+        type: 'aws_secret_reference' as const
+      },
+      {
+        key: 'AWS_REGION',
+        value: 'ap-northeast-1',
+        type: 'direct_value' as const
+      },
+      {
+        key: 'NODE_ENV',
+        value: 'projectname-dev-shared-vars:NODE_ENV',
+        type: 'aws_secret_reference' as const
+      }
     ];
 
     // Mock responses for different secrets
     const { SecretsManagerClient } = require('@aws-sdk/client-secrets-manager');
     const mockSend = jest.fn();
-    
+
     // Set up sequential responses for different secrets
     mockSend
       .mockResolvedValueOnce({
@@ -380,20 +439,23 @@ describe('utils: resolvePartialReferencesToValues', () => {
           DATABASE_CONNECTION_STRING: 'mongodb://localhost:27017/test'
         })
       });
-    
+
     // Update the mock implementation
     SecretsManagerClient.mockImplementation(() => ({
       send: mockSend
     }));
 
-    const result = await utils.resolvePartialReferencesToValues(entries, testData.awsConfig);
+    const result = await utils.resolvePartialReferencesToValues(
+      entries,
+      testData.awsConfig
+    );
 
     // Should make only 2 API calls (one per secret name)
     expect(mockSend).toHaveBeenCalledTimes(2);
 
     // Verify all entries are resolved correctly
     expect(result).toHaveLength(5);
-    
+
     // Secret references should be resolved
     expect(result.find(r => r.key === 'APP_ENV')).toEqual({
       key: 'APP_ENV',
@@ -434,21 +496,32 @@ describe('utils: resolvePartialReferencesToValues', () => {
 
   it('should handle AWS API failures gracefully', async () => {
     const entries: ClassifiedEntry[] = [
-      { key: 'APP_ENV', value: 'projectname-dev-shared-vars:APP_ENVIRONMENT', type: 'aws_secret_reference' as const },
-      { key: 'AUTH_PREFIX', value: 'projectname-dev-shared-vars:AUTH_SERVICE_ENDPOINT_PREFIX', type: 'aws_secret_reference' as const }
+      {
+        key: 'APP_ENV',
+        value: 'projectname-dev-shared-vars:APP_ENVIRONMENT',
+        type: 'aws_secret_reference' as const
+      },
+      {
+        key: 'AUTH_PREFIX',
+        value: 'projectname-dev-shared-vars:AUTH_SERVICE_ENDPOINT_PREFIX',
+        type: 'aws_secret_reference' as const
+      }
     ];
 
     // Mock API failure
     const { SecretsManagerClient } = require('@aws-sdk/client-secrets-manager');
     const mockSend = jest.fn();
     mockSend.mockRejectedValue(new Error('AWS API Error'));
-    
+
     // Update the mock implementation
     SecretsManagerClient.mockImplementation(() => ({
       send: mockSend
     }));
 
-    const result = await utils.resolvePartialReferencesToValues(entries, testData.awsConfig);
+    const result = await utils.resolvePartialReferencesToValues(
+      entries,
+      testData.awsConfig
+    );
 
     // Should make 1 API call (for the single secret name)
     expect(mockSend).toHaveBeenCalledTimes(1);

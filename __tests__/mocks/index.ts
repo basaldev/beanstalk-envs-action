@@ -1,6 +1,6 @@
 /**
  * mocks and test utilities
- * 
+ *
  */
 
 export const mockFs = {
@@ -29,10 +29,7 @@ export const testData = {
   },
   secrets: {
     single: 'projectname-dev:APP_ENV',
-    multiple: [
-      'projectname-dev:APP_ENV',
-      'projectname-dev:DATABASE_URL'
-    ]
+    multiple: ['projectname-dev:APP_ENV', 'projectname-dev:DATABASE_URL']
   },
   awsConfig: {
     region: 'ap-northeast-1'
@@ -41,10 +38,22 @@ export const testData = {
 
 export const formatterTestData = {
   secretManagerReferenceEntries: [
-    { key: 'APP_ENVIRONMENT', value: 'projectname-dev-shared-vars:APP_ENVIRONMENT', type: 'aws_secret_reference' as const },
+    {
+      key: 'APP_ENVIRONMENT',
+      value: 'projectname-dev-shared-vars:APP_ENVIRONMENT',
+      type: 'aws_secret_reference' as const
+    },
     { key: 'NODE_ENV', value: 'development', type: 'direct_value' as const },
-    { key: 'DATABASE_URL', value: 'projectname-dev-bfb:DATABASE_CONNECTION_STRING', type: 'aws_secret_reference' as const },
-    { key: 'AWS_REGION', value: 'ap-northeast-1', type: 'direct_value' as const }
+    {
+      key: 'DATABASE_URL',
+      value: 'projectname-dev-bfb:DATABASE_CONNECTION_STRING',
+      type: 'aws_secret_reference' as const
+    },
+    {
+      key: 'AWS_REGION',
+      value: 'ap-northeast-1',
+      type: 'direct_value' as const
+    }
   ],
   defaultDirectValueEntries: [
     { key: 'APP_ENVIRONMENT', value: 'development' },
@@ -93,9 +102,8 @@ export const testUtils = {
     mockFs.writeFileSync.mockReset();
     mockFs.promises.access.mockReset();
     mockFs.promises.writeFile.mockReset();
-    
+
     mockSecretsManagerClient.send.mockReset();
     mockGetSecretValueCommand.mockReset();
-    
   }
 };

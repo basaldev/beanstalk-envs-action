@@ -9,7 +9,7 @@ export type Entry = { key: string; value: string | boolean | number };
  * Entry with explicit type classification
  * @property type - Type classification: 'aws_secret_reference' or 'direct_value'
  */
-export type ClassifiedEntry = Entry & { 
+export type ClassifiedEntry = Entry & {
   type: 'aws_secret_reference' | 'direct_value';
 };
 

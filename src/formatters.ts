@@ -1,17 +1,19 @@
 import { ENVVARS_FILE_HEADER } from './constants';
 import { Entry, ClassifiedEntry } from './types';
 
-
 /**
  * Convert a secret reference string to AWS Secrets Manager ARN
  * @param secretPath - Format example: "projectname-dev-shared-vars:APP_ENVIRONMENT"
  * @returns AWS Secrets Manager ARN
  */
-function convertToSecretsManagerARN(secretPath: string, awsRegion: string): string {
+function convertToSecretsManagerARN(
+  secretPath: string,
+  awsRegion: string
+): string {
   // Extract secret name and key from secret reference string
   // (example: "projectname-dev-shared-vars:APP_ENVIRONMENT" -> "projectname-dev-shared-vars", "APP_ENVIRONMENT")
   const [secretName, secretKey] = secretPath.split(':');
-  
+
   // Format: arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:secretName:secretKey
   return `arn:aws:secretsmanager:${awsRegion}:\${AWS::AccountId}:secret:${secretName}:${secretKey}`;
 }
@@ -23,7 +25,7 @@ function convertToSecretsManagerARN(secretPath: string, awsRegion: string): stri
  */
 export function ebextensionsEnvVarsSecretManagerFormatter(
   entries: ClassifiedEntry[],
-  awsRegion: string 
+  awsRegion: string
 ): string {
   const optionSettings = entries.map(entry => {
     if (entry.type === 'aws_secret_reference') {

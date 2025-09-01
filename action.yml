@@ -17,13 +17,19 @@ inputs:
     required: false
     default: 'envvars.config'
   json:
-    description: 'JSON representation of environment variable key/values to set as direct values'
+    description:
+      'JSON representation of environment variable key/values to set as direct
+      values'
     required: false
   aws_secret_references:
-    description: 'JSON string containing AWS Secrets Manager partial references (format: "secretName:secretKey")'
+    description:
+      'JSON string containing AWS Secrets Manager partial references (format:
+      "secretName:secretKey")'
     required: false
   aws_region:
-    description: 'AWS region for Secrets Manager ARNs (required when using aws_secret_references)'
+    description:
+      'AWS region for Secrets Manager ARNs (required when using
+      aws_secret_references)'
     required: false
   sort_keys:
     description: 'Sort environment variables alphabetically by key'
@@ -34,14 +40,17 @@ inputs:
     required: false
     default: 'false'
   rendered_file_path:
-    description: 'Path to generate test config file with resolved secret values (only when aws_secret_references input is provided)'
+    description:
+      'Path to generate test config file with resolved secret values (only when
+      aws_secret_references input is provided)'
     required: false
 
 outputs:
   result:
     description: 'envvars.config file'
   test_config:
-    description: 'envvars-test.config file (only when rendered_file_path is provided)'
+    description:
+      'envvars-test.config file (only when rendered_file_path is provided)'
 
 runs:
   using: 'node20'

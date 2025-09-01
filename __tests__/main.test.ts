@@ -1,3 +1,7 @@
+/* eslint-disable import/first */
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-var-requires */
+
 /**
  * Unit tests for the action's main functionality, src/main.ts
  *
@@ -7,7 +11,6 @@
  */
 
 import * as main from '../src/main';
-import * as constants from '../src/constants';
 
 // Mock file system
 jest.mock('fs', () => ({
@@ -36,7 +39,7 @@ jest.mock('@actions/core', () => ({
   setFailed: jest.fn()
 }));
 
-// Import centralized test utilities after mocks
+// Import test utilities after mocks
 import { testUtils, mockInputPatterns } from './mocks';
 
 describe('action', () => {
@@ -48,7 +51,7 @@ describe('action', () => {
   it('should use default directory and filename', async () => {
     const defaultDirectory = '.ebextensions';
     const defaultFilename = 'envvars.config';
-    
+
     const core = require('@actions/core');
     core.getInput.mockImplementation((name: string) => {
       switch (name) {
@@ -71,7 +74,7 @@ describe('action', () => {
   it('should use user inputted values for directory and filename', async () => {
     const userSpecifiedDirectory = 'some-directory';
     const userSpecifiedFilename = 'secrets';
-    
+
     const core = require('@actions/core');
     core.getInput.mockImplementation((name: string) => {
       switch (name) {
@@ -121,7 +124,7 @@ describe('action', () => {
   it('should output user inputted yaml entries to file', async () => {
     const mockValue = 'yaml_test';
     const mockKey = 'MY_YAML_KEY';
-    
+
     const core = require('@actions/core');
     core.getInput.mockImplementation((name: string) => {
       switch (name) {
@@ -196,7 +199,7 @@ describe('action', () => {
     testUtils.setupEnvVars({ [mockYamlKey]: mockYamlValue });
 
     await main.run();
-    
+
     expect(core.error).toHaveBeenCalledWith(
       '[extractEntriesDefault] Error: Duplicate keys detected (MY_DUPLICATE_KEY)'
     );
@@ -224,13 +227,13 @@ describe('action', () => {
       }
     });
 
-    testUtils.setupEnvVars({ 
+    testUtils.setupEnvVars({
       [mockYamlKey]: mockYamlValue,
       [anotherMockYamlKey]: mockYamlValue
     });
 
     await main.run();
-    
+
     expect(core.error).toHaveBeenCalledWith(
       '[extractEntriesDefault] Error: Duplicate keys detected (MY_DUPLICATE_KEY,ANOTHER_DUPLICATE_KEY)'
     );
@@ -245,13 +248,15 @@ describe('action', () => {
       core.getInput.mockImplementation((name: string) => {
         switch (name) {
           case 'aws_secret_references':
-            return mockInputPatterns.directValuesAndSecretReferences.aws_secret_references;
+            return mockInputPatterns.directValuesAndSecretReferences
+              .aws_secret_references;
           case 'json':
             return mockInputPatterns.directValuesAndSecretReferences.json;
           case 'aws_region':
             return mockInputPatterns.directValuesAndSecretReferences.aws_region;
           case 'rendered_file_path':
-            return mockInputPatterns.directValuesAndSecretReferences.rendered_file_path;
+            return mockInputPatterns.directValuesAndSecretReferences
+              .rendered_file_path;
           default:
             return '';
         }
@@ -262,9 +267,11 @@ describe('action', () => {
       // Should generate deployment config with SecretManager formatter
       expect(core.setOutput).toHaveBeenCalledWith(
         'result',
-        expect.stringContaining('aws:elasticbeanstalk:application:environmentsecrets')
+        expect.stringContaining(
+          'aws:elasticbeanstalk:application:environmentsecrets'
+        )
       );
-      
+
       expect(core.setOutput).toHaveBeenCalledWith(
         'test_config',
         expect.any(String)
@@ -278,7 +285,8 @@ describe('action', () => {
       core.getInput.mockImplementation((name: string) => {
         switch (name) {
           case 'aws_secret_references':
-            return mockInputPatterns.directValuesAndSecretReferences.aws_secret_references;
+            return mockInputPatterns.directValuesAndSecretReferences
+              .aws_secret_references;
           case 'json':
             return mockInputPatterns.directValuesAndSecretReferences.json;
           case 'aws_region':
@@ -310,7 +318,8 @@ describe('action', () => {
           case 'aws_region':
             return mockInputPatterns.directValuesAndSecretReferences.aws_region;
           case 'rendered_file_path':
-            return mockInputPatterns.directValuesAndSecretReferences.rendered_file_path;
+            return mockInputPatterns.directValuesAndSecretReferences
+              .rendered_file_path;
           default:
             return '';
         }
@@ -331,13 +340,15 @@ describe('action', () => {
       core.getInput.mockImplementation((name: string) => {
         switch (name) {
           case 'aws_secret_references':
-            return mockInputPatterns.directValuesAndSecretReferences.aws_secret_references;
+            return mockInputPatterns.directValuesAndSecretReferences
+              .aws_secret_references;
           case 'json':
             return ''; // No direct values
           case 'aws_region':
             return mockInputPatterns.directValuesAndSecretReferences.aws_region;
           case 'rendered_file_path':
-            return mockInputPatterns.directValuesAndSecretReferences.rendered_file_path;
+            return mockInputPatterns.directValuesAndSecretReferences
+              .rendered_file_path;
           default:
             return '';
         }
@@ -347,7 +358,9 @@ describe('action', () => {
 
       expect(core.setOutput).toHaveBeenCalledWith(
         'result',
-        expect.stringContaining('aws:elasticbeanstalk:application:environmentsecrets')
+        expect.stringContaining(
+          'aws:elasticbeanstalk:application:environmentsecrets'
+        )
       );
 
       expect(core.error).not.toHaveBeenCalled();
