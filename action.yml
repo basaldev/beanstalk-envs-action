@@ -30,6 +30,21 @@ inputs:
     description:
       'AWS region for Secrets Manager ARNs (required when using
       aws_secret_references)'
+    required: true
+  aws_access_key_id:
+    description:
+      'AWS access key ID (must be provided with aws_secret_access_key and
+      aws_session_token, or leave all three empty to use scope credentials)'
+    required: false
+  aws_secret_access_key:
+    description:
+      'AWS secret access key (must be provided with aws_access_key_id and
+      aws_session_token, or leave all three empty to use scope credentials)'
+    required: false
+  aws_session_token:
+    description:
+      'AWS session token (must be provided with aws_access_key_id and
+      aws_secret_access_key, or leave all three empty to use scope credentials)'
     required: false
   sort_keys:
     description: 'Sort environment variables alphabetically by key'
