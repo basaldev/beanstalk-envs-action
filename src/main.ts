@@ -5,7 +5,9 @@ import {
   extractEntriesDefault,
   extractEntries,
   getOutputPath,
-  resolvePartialReferencesToValues
+  resolvePartialReferencesToValues,
+  getAWSAccountId,
+  validateAWSCredentials
 } from './utils';
 import {
   ebextensionsEnvVarsSecretManagerFormatter,
@@ -25,6 +27,9 @@ export async function run() {
     const shouldFailOnEmpty = core.getInput('fail_on_empty');
     const renderedFilePath = core.getInput('rendered_file_path') || '';
     const awsRegion = core.getInput('aws_region');
+    const awsAccessKeyId = core.getInput('aws_access_key_id') || '';
+    const awsSecretAccessKey = core.getInput('aws_secret_access_key') || '';
+    const awsSessionToken = core.getInput('aws_session_token') || '';
 
     // entries can be either:
 
@@ -54,6 +59,14 @@ export async function run() {
           'aws_region input is required when using aws_secret_references'
         );
       }
+
+      // Validate AWS credentials (partial credentials not allowed)
+      validateAWSCredentials(
+        awsAccessKeyId,
+        awsSecretAccessKey,
+        awsSessionToken
+      );
+
       isLegacyFormat = false;
       entries = extractEntries(
         awsSecretReferencesInput,
@@ -81,10 +94,38 @@ export async function run() {
       output = ebextensionsEnvVarsDefaultFormatter(entries);
     } else {
       // use SecretManager formatter for AWS Secrets Manager ARNs
+      // Resolve AWS account ID for Secrets Manager ARNs
+      // AWS SDK automatically falls back to scope credentials when credentials are not provided
+      let resolvedAccountId: string;
+      try {
+        const credentialType =
+          awsAccessKeyId && awsSecretAccessKey && awsSessionToken
+            ? 'explicit'
+            : 'scope';
+        core.debug(
+          `Using ${credentialType} AWS credentials to resolve account ID from STS...`
+        );
+
+        const awsConfig: AWSConfig = {
+          region: awsRegion,
+          accessKeyId: awsAccessKeyId,
+          secretAccessKey: awsSecretAccessKey,
+          sessionToken: awsSessionToken
+        };
+
+        resolvedAccountId = await getAWSAccountId(awsConfig);
+        core.debug(`Resolved AWS account ID`);
+      } catch (error) {
+        throw new Error(
+          `Failed to resolve AWS account ID: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+      }
+
       const classifiedEntries = entries as ClassifiedEntry[];
       output = ebextensionsEnvVarsSecretManagerFormatter(
         classifiedEntries,
-        awsRegion
+        awsRegion,
+        resolvedAccountId
       );
     }
 
@@ -96,7 +137,10 @@ export async function run() {
     if (renderedFilePath && renderedFilePath.trim() !== '' && !isLegacyFormat) {
       try {
         const awsConfig: AWSConfig = {
-          region: awsRegion
+          region: awsRegion,
+          accessKeyId: awsAccessKeyId,
+          secretAccessKey: awsSecretAccessKey,
+          sessionToken: awsSessionToken
         };
 
         // Resolve aws secret references to actual values for testing
