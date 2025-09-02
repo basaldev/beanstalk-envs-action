@@ -8,14 +8,15 @@ import { Entry, ClassifiedEntry } from './types';
  */
 function convertToSecretsManagerARN(
   secretPath: string,
-  awsRegion: string
+  awsRegion: string,
+  awsAccountId: string
 ): string {
   // Extract secret name and key from secret reference string
   // (example: "projectname-dev-shared-vars:APP_ENVIRONMENT" -> "projectname-dev-shared-vars", "APP_ENVIRONMENT")
   const [secretName, secretKey] = secretPath.split(':');
 
   // Format: arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:secretName:secretKey
-  return `arn:aws:secretsmanager:${awsRegion}:\${AWS::AccountId}:secret:${secretName}:${secretKey}`;
+  return `arn:aws:secretsmanager:${awsRegion}:${awsAccountId}:secret:${secretName}:${secretKey}`;
 }
 
 /**
@@ -25,14 +26,15 @@ function convertToSecretsManagerARN(
  */
 export function ebextensionsEnvVarsSecretManagerFormatter(
   entries: ClassifiedEntry[],
-  awsRegion: string
+  awsRegion: string,
+  awsAccountId: string
 ): string {
   const optionSettings = entries.map(entry => {
     if (entry.type === 'aws_secret_reference') {
       // Format as AWS Secrets Manager reference
       return `  - namespace: aws:elasticbeanstalk:application:environmentsecrets
     option_name: ${entry.key}
-    value: ${convertToSecretsManagerARN(String(entry.value), awsRegion)}`;
+    value: ${convertToSecretsManagerARN(String(entry.value), awsRegion, awsAccountId)}`;
     } else {
       // Format as direct environment variable
       return `  - namespace: aws:elasticbeanstalk:application:environment
@@ -41,9 +43,7 @@ export function ebextensionsEnvVarsSecretManagerFormatter(
     }
   });
 
-  return `${ENVVARS_FILE_HEADER}
-option_settings:
-${optionSettings.join('\n')}`;
+  return `${ENVVARS_FILE_HEADER}${optionSettings.join('\n')}`;
 }
 
 /**
