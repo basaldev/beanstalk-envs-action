@@ -214,7 +214,25 @@ export async function resolvePartialReferencesToValues(
   entries: ClassifiedEntry[],
   awsConfig: AWSConfig
 ): Promise<ResolvedEntry[]> {
-  const client = new SecretsManagerClient({ region: awsConfig.region });
+  // Create AWS client with provided credentials or fall back to scope
+  const clientConfig: {
+    region: string;
+    credentials?: {
+      accessKeyId: string;
+      secretAccessKey: string;
+      sessionToken?: string;
+    };
+  } = { region: awsConfig.region };
+
+  if (awsConfig.accessKeyId && awsConfig.secretAccessKey) {
+    clientConfig.credentials = {
+      accessKeyId: awsConfig.accessKeyId,
+      secretAccessKey: awsConfig.secretAccessKey,
+      sessionToken: awsConfig.sessionToken
+    };
+  }
+
+  const client = new SecretsManagerClient(clientConfig);
   const resolvedEntries: ResolvedEntry[] = [];
 
   // Group entries by secret name
