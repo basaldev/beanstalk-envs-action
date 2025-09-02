@@ -11,7 +11,8 @@ describe('ebextensionsEnvVarsSecretManagerFormatter', () => {
   it('should format AWS secret references with correct namespace', () => {
     const result = ebextensionsEnvVarsSecretManagerFormatter(
       mockEntries,
-      'ap-northeast-1'
+      'ap-northeast-1',
+      '123456789012'
     );
 
     expect(result).toContain(
@@ -19,14 +20,15 @@ describe('ebextensionsEnvVarsSecretManagerFormatter', () => {
     );
     expect(result).toContain('option_name: APP_ENVIRONMENT');
     expect(result).toContain(
-      'arn:aws:secretsmanager:ap-northeast-1:${AWS::AccountId}:secret:projectname-dev-shared-vars:APP_ENVIRONMENT'
+      'arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:projectname-dev-shared-vars:APP_ENVIRONMENT'
     );
   });
 
   it('should format direct values with correct namespace', () => {
     const result = ebextensionsEnvVarsSecretManagerFormatter(
       mockEntries,
-      'ap-northeast-1'
+      'ap-northeast-1',
+      '123456789012'
     );
 
     expect(result).toContain(
@@ -39,12 +41,13 @@ describe('ebextensionsEnvVarsSecretManagerFormatter', () => {
   it('should generate valid YAML structure', () => {
     const result = ebextensionsEnvVarsSecretManagerFormatter(
       mockEntries,
-      'ap-northeast-1'
+      'ap-northeast-1',
+      '123456789012'
     );
 
     expect(result).toContain('option_settings:');
     expect(result).toMatch(
-      / {2}- namespace: aws:elasticbeanstalk:application:environmentsecrets\n {4}option_name: APP_ENVIRONMENT\n {4}value: arn:aws:secretsmanager:ap-northeast-1:\$\{AWS::AccountId\}:secret:projectname-dev-shared-vars:APP_ENVIRONMENT/
+      / {2}- namespace: aws:elasticbeanstalk:application:environmentsecrets\n {4}option_name: APP_ENVIRONMENT\n {4}value: arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:projectname-dev-shared-vars:APP_ENVIRONMENT/
     );
     expect(result).toMatch(
       / {2}- namespace: aws:elasticbeanstalk:application:environment\n {4}option_name: NODE_ENV\n {4}value: development/
@@ -54,11 +57,12 @@ describe('ebextensionsEnvVarsSecretManagerFormatter', () => {
   it('should handle different AWS regions', () => {
     const result = ebextensionsEnvVarsSecretManagerFormatter(
       mockEntries,
-      'eu-west-1'
+      'eu-west-1',
+      '987654321098'
     );
 
     expect(result).toContain(
-      'arn:aws:secretsmanager:eu-west-1:${AWS::AccountId}:secret:projectname-dev-shared-vars:APP_ENVIRONMENT'
+      'arn:aws:secretsmanager:eu-west-1:987654321098:secret:projectname-dev-shared-vars:APP_ENVIRONMENT'
     );
   });
 });

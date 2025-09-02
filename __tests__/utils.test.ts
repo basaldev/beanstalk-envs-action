@@ -12,6 +12,13 @@ jest.mock('@aws-sdk/client-secrets-manager', () => ({
   GetSecretValueCommand: jest.fn()
 }));
 
+jest.mock('@aws-sdk/client-sts', () => ({
+  STSClient: jest.fn().mockImplementation(() => ({
+    send: jest.fn()
+  })),
+  GetCallerIdentityCommand: jest.fn()
+}));
+
 // Mock @actions/core
 jest.mock('@actions/core', () => ({
   debug: jest.fn(),
@@ -30,6 +37,147 @@ beforeEach(() => {
 
 afterEach(() => {
   process.env = originalProcessEnv;
+});
+
+describe('utils: validateAWSCredentials', () => {
+  it('should pass when all three credentials are provided', () => {
+    expect(() => {
+      utils.validateAWSCredentials(
+        'IKEAIOSFODNN7EXAMPLE',
+        'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        'AQoEXAMPLEH4aoAH0gNCAPyJxzrBlCFFxWNE1OPTgk5TthT...'
+      );
+    }).not.toThrow();
+  });
+
+  it('should pass when no credentials are provided', () => {
+    expect(() => {
+      utils.validateAWSCredentials('', '', '');
+    }).not.toThrow();
+  });
+
+  it('should throw error when only access key is provided', () => {
+    expect(() => {
+      utils.validateAWSCredentials('IKEAIOSFODNN7EXAMPLE', '', '');
+    }).toThrow(
+      'Partial AWS credentials provided: aws_access_key_id. All three credentials must be provided together, or leave all three empty to use scope credentials.'
+    );
+  });
+
+  it('should throw error when only access key and secret key are provided', () => {
+    expect(() => {
+      utils.validateAWSCredentials(
+        'IKEAIOSFODNN7EXAMPLE',
+        'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        ''
+      );
+    }).toThrow(
+      'Partial AWS credentials provided: aws_access_key_id, aws_secret_access_key. All three credentials must be provided together, or leave all three empty to use scope credentials.'
+    );
+  });
+
+  it('should throw error when only secret key is provided', () => {
+    expect(() => {
+      utils.validateAWSCredentials(
+        '',
+        'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        ''
+      );
+    }).toThrow(
+      'Partial AWS credentials provided: aws_secret_access_key. All three credentials must be provided together, or leave all three empty to use scope credentials.'
+    );
+  });
+
+  it('should throw error when only session token is provided', () => {
+    expect(() => {
+      utils.validateAWSCredentials(
+        '',
+        '',
+        'AQoEXAMPLEH4aoAH0gNCAPyJxzrBlCFFxWNE1OPTgk5TthT...'
+      );
+    }).toThrow(
+      'Partial AWS credentials provided: aws_session_token. All three credentials must be provided together, or leave all three empty to use scope credentials.'
+    );
+  });
+});
+
+describe('utils: getAWSAccountId', () => {
+  beforeEach(() => {
+    testUtils.resetAllMocks();
+  });
+
+  it('should return account ID when using explicit credentials', async () => {
+    const { STSClient } = require('@aws-sdk/client-sts');
+    const mockSend = jest.fn().mockResolvedValue({
+      Account: '123456789012'
+    });
+
+    STSClient.mockImplementation(() => ({
+      send: mockSend
+    }));
+
+    const result = await utils.getAWSAccountId({
+      region: 'ap-northeast-1',
+      accessKeyId: 'IKEAIOSFODNN7EXAMPLE',
+      secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+      sessionToken: 'AQoEXAMPLEH4aoAH0gNCAPyJxzrBlCFFxWNE1OPTgk5TthT...'
+    });
+
+    expect(result).toBe('123456789012');
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('should return account ID when using scope credentials', async () => {
+    const { STSClient } = require('@aws-sdk/client-sts');
+    const mockSend = jest.fn().mockResolvedValue({
+      Account: '987654321098'
+    });
+
+    STSClient.mockImplementation(() => ({
+      send: mockSend
+    }));
+
+    const result = await utils.getAWSAccountId({
+      region: 'ap-northeast-1'
+    });
+
+    expect(result).toBe('987654321098');
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('should throw error when STS call fails', async () => {
+    const { STSClient } = require('@aws-sdk/client-sts');
+    const mockSend = jest.fn().mockRejectedValue(new Error('STS Error'));
+
+    STSClient.mockImplementation(() => ({
+      send: mockSend
+    }));
+
+    await expect(
+      utils.getAWSAccountId({
+        region: 'ap-northeast-1'
+      })
+    ).rejects.toThrow('Failed to resolve AWS account ID: STS Error');
+  });
+
+  it('should throw error when account ID is not returned', async () => {
+    const { STSClient } = require('@aws-sdk/client-sts');
+    const mockSend = jest.fn().mockResolvedValue({
+      Account: undefined
+    });
+
+    STSClient.mockImplementation(() => ({
+      send: mockSend
+    }));
+
+    await expect(
+      utils.getAWSAccountId({
+        region: 'ap-northeast-1'
+      })
+    ).rejects.toThrow(
+      'Failed to resolve AWS account ID: Failed to get AWS account ID from STS'
+    );
+  });
 });
 
 describe('utils: extractYamlKey', () => {

@@ -30,6 +30,15 @@ jest.mock('@aws-sdk/client-secrets-manager', () => ({
   GetSecretValueCommand: jest.fn()
 }));
 
+jest.mock('@aws-sdk/client-sts', () => ({
+  STSClient: jest.fn().mockImplementation(() => ({
+    send: jest.fn().mockResolvedValue({
+      Account: '123456789012'
+    })
+  })),
+  GetCallerIdentityCommand: jest.fn()
+}));
+
 // Mock GitHub Actions core
 jest.mock('@actions/core', () => ({
   debug: jest.fn(),
@@ -301,6 +310,73 @@ describe('action', () => {
       expect(core.setFailed).toHaveBeenCalledWith(
         '[main] Error: aws_region input is required when using aws_secret_references'
       );
+    });
+
+    it('should throw error when partial AWS credentials are provided', async () => {
+      const core = require('@actions/core');
+      core.getInput.mockImplementation((name: string) => {
+        switch (name) {
+          case 'aws_secret_references':
+            return mockInputPatterns.directValuesAndSecretReferences
+              .aws_secret_references;
+          case 'json':
+            return mockInputPatterns.directValuesAndSecretReferences.json;
+          case 'aws_region':
+            return mockInputPatterns.directValuesAndSecretReferences.aws_region;
+          case 'aws_access_key_id':
+            return 'IKEAIOSFODNN7EXAMPLE'; // Only access key provided
+          case 'aws_secret_access_key':
+            return ''; // Missing secret key
+          case 'aws_session_token':
+            return ''; // Missing session token
+          default:
+            return '';
+        }
+      });
+
+      await main.run();
+
+      expect(core.setFailed).toHaveBeenCalledWith(
+        '[main] Error: Partial AWS credentials provided: aws_access_key_id. All three credentials must be provided together, or leave all three empty to use scope credentials.'
+      );
+    });
+
+    it('should work with explicit AWS credentials', async () => {
+      const core = require('@actions/core');
+      core.getInput.mockImplementation((name: string) => {
+        switch (name) {
+          case 'aws_secret_references':
+            return mockInputPatterns.directValuesAndSecretReferences
+              .aws_secret_references;
+          case 'json':
+            return mockInputPatterns.directValuesAndSecretReferences.json;
+          case 'aws_region':
+            return mockInputPatterns.directValuesAndSecretReferences.aws_region;
+          case 'aws_access_key_id':
+            return 'IKEAIOSFODNN7EXAMPLE';
+          case 'aws_secret_access_key':
+            return 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
+          case 'aws_session_token':
+            return 'AQoEXAMPLEH4aoAH0gNCAPyJxzrBlCFFxWNE1OPTgk5TthT...';
+          case 'rendered_file_path':
+            return mockInputPatterns.directValuesAndSecretReferences
+              .rendered_file_path;
+          default:
+            return '';
+        }
+      });
+
+      await main.run();
+
+      // Should generate deployment config with resolved account ID
+      expect(core.setOutput).toHaveBeenCalledWith(
+        'result',
+        expect.stringContaining(
+          'arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:'
+        )
+      );
+
+      expect(core.error).not.toHaveBeenCalled();
     });
 
     it('should throw error due to duplicate keys in aws_secret_references + json', async () => {

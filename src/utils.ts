@@ -25,7 +25,7 @@ export function validateAWSCredentials(
   accessKeyId: string,
   secretAccessKey: string,
   sessionToken: string
-){
+) {
   const providedCreds = [];
   if (accessKeyId.trim()) providedCreds.push('aws_access_key_id');
   if (secretAccessKey.trim()) providedCreds.push('aws_secret_access_key');

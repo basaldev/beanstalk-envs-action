@@ -17,6 +17,12 @@ export const mockSecretsManagerClient = {
 
 export const mockGetSecretValueCommand = jest.fn();
 
+export const mockSTSClient = {
+  send: jest.fn()
+};
+
+export const mockGetCallerIdentityCommand = jest.fn();
+
 export const testData = {
   entries: {
     single: { key: 'TEST_KEY', value: 'test_value' },
@@ -33,6 +39,12 @@ export const testData = {
   },
   awsConfig: {
     region: 'ap-northeast-1'
+  },
+  awsConfigWithCredentials: {
+    region: 'ap-northeast-1',
+    accessKeyId: 'IKEAIOSFODNN7EXAMPLE',
+    secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+    sessionToken: 'AQoEXAMPLEH4aoAH0gNCAPyJxzrBlCFFxWNE1OPTgk5TthT...'
   }
 };
 
@@ -102,8 +114,9 @@ export const testUtils = {
     mockFs.writeFileSync.mockReset();
     mockFs.promises.access.mockReset();
     mockFs.promises.writeFile.mockReset();
-
     mockSecretsManagerClient.send.mockReset();
     mockGetSecretValueCommand.mockReset();
+    mockSTSClient.send.mockReset();
+    mockGetCallerIdentityCommand.mockReset();
   }
 };
