@@ -2,6 +2,7 @@ import {
   SecretsManagerClient,
   GetSecretValueCommand
 } from '@aws-sdk/client-secrets-manager';
+import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import {
   Entry,
   ClassifiedEntry,
@@ -12,6 +13,72 @@ import {
 import * as core from '@actions/core';
 import * as path from 'path';
 import * as constants from './constants';
+
+/**
+ * Validates AWS credentials to ensure all three are provided together or none at all
+ * @param accessKeyId - AWS access key ID
+ * @param secretAccessKey - AWS secret access key
+ * @param sessionToken - AWS session token
+ * @throws Error if partial credentials are provided
+ */
+export function validateAWSCredentials(
+  accessKeyId: string,
+  secretAccessKey: string,
+  sessionToken: string
+){
+  const providedCreds = [];
+  if (accessKeyId.trim()) providedCreds.push('aws_access_key_id');
+  if (secretAccessKey.trim()) providedCreds.push('aws_secret_access_key');
+  if (sessionToken.trim()) providedCreds.push('aws_session_token');
+
+  if (providedCreds.length > 0 && providedCreds.length < 3) {
+    throw new Error(
+      `Partial AWS credentials provided: ${providedCreds.join(', ')}. All three credentials must be provided together, or leave all three empty to use scope credentials.`
+    );
+  }
+}
+
+/**
+ * Get AWS account ID using STS GetCallerIdentity
+ * @param awsConfig - AWS configuration
+ * @returns Promise<string> - AWS account ID
+ */
+export async function getAWSAccountId(awsConfig: AWSConfig): Promise<string> {
+  // Create STS client with provided credentials or fall back to scope
+  const clientConfig: {
+    region: string;
+    credentials?: {
+      accessKeyId: string;
+      secretAccessKey: string;
+      sessionToken?: string;
+    };
+  } = { region: awsConfig.region };
+
+  if (awsConfig.accessKeyId && awsConfig.secretAccessKey) {
+    clientConfig.credentials = {
+      accessKeyId: awsConfig.accessKeyId,
+      secretAccessKey: awsConfig.secretAccessKey,
+      sessionToken: awsConfig.sessionToken
+    };
+  }
+
+  const stsClient = new STSClient(clientConfig);
+
+  try {
+    const command = new GetCallerIdentityCommand({});
+    const response = await stsClient.send(command);
+
+    if (!response.Account) {
+      throw new Error('Failed to get AWS account ID from STS');
+    }
+
+    return response.Account;
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve AWS account ID: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
 
 /**
  * Get entries from process.env or from input.json (default format - direct values)
