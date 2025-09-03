@@ -5,17 +5,32 @@
 [![CodeQL](https://github.com/basaldev/beanstalk-envs-action/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/basaldev/beanstalk-envs-action/actions/workflows/codeql-analysis.yml)
 [![Coverage](./badges/coverage.svg)](./badges/coverage.svg)
 
-This GitHub Action creates `envvars.config` files for AWS Elastic Beanstalk deployments with support for both direct environment variables and AWS Secrets Manager integration.
+This GitHub Action creates `envvars.config` files for AWS Elastic Beanstalk deployments with support for both direct environment variables and AWS Secrets Manager integration. The action intelligently generates deployment configurations that avoid CloudFormation's 4096 character limit by using AWS Elastic Beanstalk's native secrets integration.
 
 ## Features
 
 - **Flexible Configuration**: Accepts JSON inputs and environment variable definitions directly in the workflow
 - **AWS Secrets Manager Integration**: Automatically resolves secrets from AWS Secrets Manager using partial ARN references
+- **CloudFormation Limit Compliance**: Generates deployment configs that stay within the 4096 character limit
+- **Dual Config Generation**: Creates both deployment and test configuration files
 - **Customizable File Placement**: Allows setting the directory and filename for the configuration file
 - **Sorting**: Optionally sorts environment variable keys alphabetically
 - **Error Handling**: Can be configured to fail the action if any environment variable is empty
-- **Test Configuration**: Generates test configuration files with resolved secret values for validation
 - **AWS Credentials**: Supports both IAM role credentials and explicit AWS credentials
+
+## The Problem Solved
+
+The action addresses CloudFormation's 4096 character limit issue that occurs when:
+- All environment variables are passed as direct values in deployment configs
+- Even values from AWS Secrets Manager are embedded in JSON during deployment
+- Combined JSON objects exceed the 4,096 byte limit when AWS processes them
+
+## Solution: Dual Config Generation
+
+The action generates two different configuration files:
+
+1. **Deployment Config** (`.ebextensions/envvars.config`): Uses AWS Elastic Beanstalk's native secrets integration with proper namespaces
+2. **Test Config** (`.ebextensions/envvars-test.config`): Contains resolved values for local testing and validation
 
 ## Inputs
 
@@ -26,7 +41,7 @@ This GitHub Action creates `envvars.config` files for AWS Elastic Beanstalk depl
 - `fail_on_empty`: Whether to fail the action if an environment variable is empty. Default is `false`
 
 ### Environment Variables
-- `json`: JSON representation of your environment variable key/values for direct values
+- `json`: JSON representation of your environment variable key/values for direct values (maintains backward compatibility)
 - `ebx_${VARIABLE_NAME}`: Define variables directly in yaml using the `ebx_` prefix (legacy format)
 
 ### AWS Secrets Manager Integration
@@ -41,7 +56,7 @@ This GitHub Action creates `envvars.config` files for AWS Elastic Beanstalk depl
 
 ## Outputs
 
-- `result`: The generated ebextensions envvars.config file
+- `result`: The generated ebextensions envvars.config file (deployment config)
 - `test_config`: A test configuration file with resolved secret values (only when `rendered_file_path` is provided)
 
 ## Usage
@@ -60,19 +75,27 @@ steps:
       sort_keys: 'true'
 ```
 
-### AWS Secrets Manager Integration
+### AWS Secrets Manager Integration (Recommended)
 
 ```yaml
 steps:
-  - name: Generate EnvVars Config with Secrets
-    uses: basaldev/beanstalk-envs-action@main
+  - name: Generate Beanstalk Config
+    uses: ./beanstalk-envs-action
     with:
-      aws_secret_references: '{"DB_PASSWORD": "myapp:db_password", "API_KEY": "myapp:api_key"}'
-      aws_region: 'us-east-1'
+      aws_secret_references: |
+        {
+          "APP_ENVIRONMENT": "flra-dev-shared-vars:APP_ENVIRONMENT",
+          "DATABASE_URL": "flra-dev-bff-bfb:DATABASE_CONNECTION_STRING"
+        }
+      json: |
+        {
+          "AWS_REGION": "ap-northeast-1",
+          "NODE_OPTIONS": "--max-old-space-size=1536"
+        }
+      aws_region: 'ap-northeast-1'
       directory: '.ebextensions'
       filename: 'envvars.config'
-      fail_on_empty: 'true'
-      sort_keys: 'true'
+      rendered_file_path: '.ebextensions/envvars-test.config'
 ```
 
 ### Mixed Direct Values and Secrets
@@ -123,7 +146,24 @@ steps:
 
 ## Output Examples
 
-### Direct Values Output
+### Deployment Config Output (envvars.config)
+
+When using AWS Secrets Manager, the deployment config uses proper namespaces:
+
+```yaml
+option_settings:
+  - namespace: aws:elasticbeanstalk:application:environmentsecrets
+    option_name: APP_ENVIRONMENT
+    value: arn:aws:secretsmanager:ap-northeast-1:${AWS::AccountId}:secret:flra-dev-shared-vars:APP_ENVIRONMENT
+  - namespace: aws:elasticbeanstalk:application:environment
+    option_name: AWS_REGION
+    value: ap-northeast-1
+  - namespace: aws:elasticbeanstalk:application:environment
+    option_name: NODE_OPTIONS
+    value: --max-old-space-size=1536
+```
+
+### Direct Values Output (Legacy Format)
 
 ```yaml
 option_settings:
@@ -133,26 +173,18 @@ option_settings:
     value: some_value
 ```
 
-### Secrets Manager Output
-
-```yaml
-option_settings:
-  - option_name: DB_PASSWORD
-    value: "{{resolve:secretsmanager:myapp:SecretString:db_password}}"
-  - option_name: API_KEY
-    value: "{{resolve:secretsmanager:myapp:SecretString:api_key}}"
-```
-
-### Test Configuration Output
+### Test Configuration Output (envvars-test.config)
 
 When `rendered_file_path` is provided, a test file is generated with resolved values:
 
 ```yaml
 option_settings:
-  - option_name: DB_PASSWORD
-    value: "actual_resolved_secret_value"
-  - option_name: API_KEY
-    value: "actual_resolved_secret_value"
+  - option_name: APP_ENVIRONMENT
+    value: dev
+  - option_name: AWS_REGION
+    value: ap-northeast-1
+  - option_name: NODE_OPTIONS
+    value: --max-old-space-size=1536
 ```
 
 ## AWS Secrets Manager Format
@@ -164,20 +196,28 @@ The `aws_secret_references` input expects a JSON object where:
 For example:
 ```json
 {
-  "DB_PASSWORD": "myapp:db_password",
-  "API_KEY": "myapp:api_key"
+  "APP_ENVIRONMENT": "flra-dev-shared-vars:APP_ENVIRONMENT",
+  "DATABASE_URL": "flra-dev-bff-bfb:DATABASE_CONNECTION_STRING"
 }
 ```
 
 This will generate:
-- `DB_PASSWORD` environment variable that references the `db_password` key from the `myapp` secret
-- `API_KEY` environment variable that references the `api_key` key from the `myapp` secret
+- `APP_ENVIRONMENT` environment variable that references the `APP_ENVIRONMENT` key from the `flra-dev-shared-vars` secret
+- `DATABASE_URL` environment variable that references the `DATABASE_CONNECTION_STRING` key from the `flra-dev-bff-bfb` secret
+
+## How It Works
+
+1. **Secrets Processing**: AWS Secrets Manager references are converted to full ARNs with `${AWS::AccountId}` placeholders
+2. **Namespace Assignment**: Secrets get the `aws:elasticbeanstalk:application:environmentsecrets` namespace, direct values get `aws:elasticbeanstalk:application:environment`
+3. **Character Limit Compliance**: By using ARN references instead of embedded values, the config stays well under the 4096 character limit
+4. **Dual Generation**: Both deployment-ready and test-ready configurations are generated for different use cases
 
 ## Requirements
 
 - **Node.js**: Version 20 or higher
 - **AWS Permissions**: When using Secrets Manager, the action needs permissions to read secrets
 - **AWS Region**: Must be specified when using `aws_secret_references`
+- **Elastic Beanstalk**: Requires Elastic Beanstalk environment that supports the `aws:elasticbeanstalk:application:environmentsecrets` namespace
 
 ## Contributing
 
