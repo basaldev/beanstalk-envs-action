@@ -84,8 +84,8 @@ steps:
     with:
       aws_secret_references: |
         {
-          "APP_ENVIRONMENT": "flra-dev-shared-vars:APP_ENVIRONMENT",
-          "DATABASE_URL": "flra-dev-bff-bfb:DATABASE_CONNECTION_STRING"
+          "APP_ENVIRONMENT": "myapp-dev-shared-vars:APP_ENVIRONMENT",
+          "DATABASE_URL": "myapp-dev-database:DATABASE_CONNECTION_STRING"
         }
       json: |
         {
@@ -154,7 +154,7 @@ When using AWS Secrets Manager, the deployment config uses proper namespaces:
 option_settings:
   - namespace: aws:elasticbeanstalk:application:environmentsecrets
     option_name: APP_ENVIRONMENT
-    value: arn:aws:secretsmanager:ap-northeast-1:${AWS::AccountId}:secret:flra-dev-shared-vars:APP_ENVIRONMENT
+    value: arn:aws:secretsmanager:ap-northeast-1:${AWS::AccountId}:secret:myapp-dev-shared-vars:APP_ENVIRONMENT
   - namespace: aws:elasticbeanstalk:application:environment
     option_name: AWS_REGION
     value: ap-northeast-1
@@ -196,14 +196,14 @@ The `aws_secret_references` input expects a JSON object where:
 For example:
 ```json
 {
-  "APP_ENVIRONMENT": "flra-dev-shared-vars:APP_ENVIRONMENT",
-  "DATABASE_URL": "flra-dev-bff-bfb:DATABASE_CONNECTION_STRING"
+  "APP_ENVIRONMENT": "myapp-dev-shared-vars:APP_ENVIRONMENT",
+  "DATABASE_URL": "myapp-dev-database:DATABASE_CONNECTION_STRING"
 }
 ```
 
 This will generate:
-- `APP_ENVIRONMENT` environment variable that references the `APP_ENVIRONMENT` key from the `flra-dev-shared-vars` secret
-- `DATABASE_URL` environment variable that references the `DATABASE_CONNECTION_STRING` key from the `flra-dev-bff-bfb` secret
+- `APP_ENVIRONMENT` environment variable that references the `APP_ENVIRONMENT` key from the `myapp-dev-shared-vars` secret
+- `DATABASE_URL` environment variable that references the `DATABASE_CONNECTION_STRING` key from the `myapp-dev-database` secret
 
 ## How It Works
 
