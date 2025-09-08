@@ -93,8 +93,9 @@ option_settings:
 
 ## Output
 
-- `.ebextensions/envvars.config` - Beanstalk deployment config with AWS Secrets Manager ARNs
-- Optional `.ebextensions/envvars-test.config` - Test config with resolved values for local testing
+- `.ebextensions/envvars.config` - Beanstalk deployment config
+- Optional test config file `envvars-test.config` (when `rendered_file_path` is provided)
+  - Test config with resolved values for local testing
 
 ## License
 
