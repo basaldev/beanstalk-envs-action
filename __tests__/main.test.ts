@@ -25,7 +25,7 @@ jest.mock('@aws-sdk/client-secrets-manager', () => ({
   SecretsManagerClient: jest.fn().mockImplementation(() => ({
     send: jest.fn().mockResolvedValue({
       ARN: 'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-shopify-vars-xOr0aN',
-      SecretString: JSON.stringify({ 
+      SecretString: JSON.stringify({
         SHOPIFY_PRODUCT_VARIANT_ABC: '19191919191919',
         SHOPIFY_PRODUCT_VARIANT_DEF: '19191919191918',
         SHOPIFY_PRODUCT_VARIANT_GHI: '19191919191917'
@@ -34,7 +34,6 @@ jest.mock('@aws-sdk/client-secrets-manager', () => ({
   })),
   GetSecretValueCommand: jest.fn()
 }));
-
 
 // Mock GitHub Actions core
 jest.mock('@actions/core', () => ({

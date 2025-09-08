@@ -12,7 +12,6 @@ jest.mock('@aws-sdk/client-secrets-manager', () => ({
   GetSecretValueCommand: jest.fn()
 }));
 
-
 // Mock @actions/core
 jest.mock('@actions/core', () => ({
   debug: jest.fn(),
@@ -115,9 +114,11 @@ describe('utils: fetchAllSecretsDataFromAWS', () => {
     ];
 
     const { SecretsManagerClient } = require('@aws-sdk/client-secrets-manager');
-    const mockSend = jest.fn().mockResolvedValue(
-      mockSecretResponses['projectname-dev-shared-shopify-vars']
-    );
+    const mockSend = jest
+      .fn()
+      .mockResolvedValue(
+        mockSecretResponses['projectname-dev-shared-shopify-vars']
+      );
 
     SecretsManagerClient.mockImplementation(() => ({
       send: mockSend
@@ -132,7 +133,8 @@ describe('utils: fetchAllSecretsDataFromAWS', () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
 
     expect(result.arns).toEqual({
-      'projectname-dev-shared-shopify-vars': 'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-shopify-vars-xOr0aN'
+      'projectname-dev-shared-shopify-vars':
+        'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-shopify-vars-xOr0aN'
     });
 
     expect(result.secretValues).toEqual({
@@ -159,7 +161,8 @@ describe('utils: fetchAllSecretsDataFromAWS', () => {
     ];
 
     const { SecretsManagerClient } = require('@aws-sdk/client-secrets-manager');
-    const mockSend = jest.fn()
+    const mockSend = jest
+      .fn()
       .mockResolvedValueOnce(mockSecretResponses['projectname-dev-shared-vars'])
       .mockResolvedValueOnce(mockSecretResponses['projectname-dev-bfb']);
 
@@ -176,16 +179,18 @@ describe('utils: fetchAllSecretsDataFromAWS', () => {
     expect(mockSend).toHaveBeenCalledTimes(2);
 
     expect(result.arns).toEqual({
-      'projectname-dev-shared-vars': 'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-vars-yPq1bM',
-      'projectname-dev-bfb': 'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-bfb-zRr2cN'
+      'projectname-dev-shared-vars':
+        'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-vars-yPq1bM',
+      'projectname-dev-bfb':
+        'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-bfb-zRr2cN'
     });
 
     expect(result.secretValues).toEqual({
-      'projectname-dev-shared-vars': { 
+      'projectname-dev-shared-vars': {
         APP_ENV: 'dev',
         AUTH_SERVICE_ENDPOINT_PREFIX: '/auth-api'
       },
-      'projectname-dev-bfb': { 
+      'projectname-dev-bfb': {
         DATABASE_CONNECTION_STRING: 'mongodb://localhost:27017/test'
       }
     });
@@ -209,7 +214,9 @@ describe('utils: fetchAllSecretsDataFromAWS', () => {
 
     await expect(
       utils.fetchAllSecretsDataFromAWS(entries, testData.awsConfig)
-    ).rejects.toThrow('Failed to fetch secret projectname-dev-shared-vars: AWS API Error');
+    ).rejects.toThrow(
+      'Failed to fetch secret projectname-dev-shared-vars: AWS API Error'
+    );
   });
 });
 
@@ -218,7 +225,10 @@ describe('utils: buildResolvedEntriesFromSecretValues', () => {
     const entries = testData.classifiedEntries;
     const secretValues = testData.secretValues;
 
-    const result = utils.buildResolvedEntriesFromSecretValues(entries, secretValues);
+    const result = utils.buildResolvedEntriesFromSecretValues(
+      entries,
+      secretValues
+    );
 
     expect(result).toEqual([
       {
@@ -251,7 +261,10 @@ describe('utils: buildResolvedEntriesFromSecretValues', () => {
       }
     };
 
-    const result = utils.buildResolvedEntriesFromSecretValues(entries, secretValues);
+    const result = utils.buildResolvedEntriesFromSecretValues(
+      entries,
+      secretValues
+    );
 
     expect(result).toEqual([
       {
@@ -618,4 +631,3 @@ describe('utils: extractEntries (aws_secret_references format)', () => {
     });
   });
 });
-

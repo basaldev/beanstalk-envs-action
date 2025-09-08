@@ -54,7 +54,8 @@ describe('ebextensionsEnvVarsSecretManagerFormatter', () => {
 
   it('should handle different AWS regions and account IDs', () => {
     const differentArns = {
-      'projectname-dev-shared-shopify-vars': 'arn:aws:secretsmanager:eu-west-1:987654321098:secret:projectname-dev-shared-shopify-vars-yPq1bM'
+      'projectname-dev-shared-shopify-vars':
+        'arn:aws:secretsmanager:eu-west-1:987654321098:secret:projectname-dev-shared-shopify-vars-yPq1bM'
     };
 
     const result = ebextensionsEnvVarsSecretManagerFormatter(

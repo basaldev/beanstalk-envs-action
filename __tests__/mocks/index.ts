@@ -42,7 +42,6 @@ export const mockSecretResponses = {
   }
 };
 
-
 export const testData = {
   entries: {
     single: { key: 'TEST_KEY', value: 'test_value' },
@@ -85,7 +84,8 @@ export const testData = {
     }
   },
   arns: {
-    'projectname-dev-shared-shopify-vars': 'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-shopify-vars-xOr0aN'
+    'projectname-dev-shared-shopify-vars':
+      'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-shopify-vars-xOr0aN'
   }
 };
 
@@ -96,7 +96,11 @@ export const formatterTestData = {
       value: 'projectname-dev-shared-shopify-vars',
       type: 'aws_secret_reference' as const
     },
-    { key: 'AWS_REGION', value: 'ap-northeast-1', type: 'direct_value' as const },
+    {
+      key: 'AWS_REGION',
+      value: 'ap-northeast-1',
+      type: 'direct_value' as const
+    },
     {
       key: 'SHOPIFY_PRODUCT_VARIANT_DEF',
       value: 'projectname-dev-shared-shopify-vars',
