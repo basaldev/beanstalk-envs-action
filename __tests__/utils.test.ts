@@ -12,12 +12,6 @@ jest.mock('@aws-sdk/client-secrets-manager', () => ({
   GetSecretValueCommand: jest.fn()
 }));
 
-jest.mock('@aws-sdk/client-sts', () => ({
-  STSClient: jest.fn().mockImplementation(() => ({
-    send: jest.fn()
-  })),
-  GetCallerIdentityCommand: jest.fn()
-}));
 
 // Mock @actions/core
 jest.mock('@actions/core', () => ({
@@ -26,7 +20,7 @@ jest.mock('@actions/core', () => ({
   error: jest.fn()
 }));
 
-import { testUtils, testData } from './mocks';
+import { testUtils, testData, mockSecretResponses } from './mocks';
 
 let originalProcessEnv: NodeJS.ProcessEnv;
 
@@ -101,82 +95,172 @@ describe('utils: validateAWSCredentials', () => {
   });
 });
 
-describe('utils: getAWSAccountId', () => {
+describe('utils: fetchAllSecretsDataFromAWS', () => {
   beforeEach(() => {
     testUtils.resetAllMocks();
   });
 
-  it('should return account ID when using explicit credentials', async () => {
-    const { STSClient } = require('@aws-sdk/client-sts');
-    const mockSend = jest.fn().mockResolvedValue({
-      Account: '123456789012'
-    });
+  it('should fetch ARNs and secret values for unique secret names', async () => {
+    const entries: ClassifiedEntry[] = [
+      {
+        key: 'SHOPIFY_PRODUCT_VARIANT_ABC',
+        value: 'projectname-dev-shared-shopify-vars',
+        type: 'aws_secret_reference' as const
+      },
+      {
+        key: 'SHOPIFY_PRODUCT_VARIANT_DEF',
+        value: 'projectname-dev-shared-shopify-vars', // Same secret name
+        type: 'aws_secret_reference' as const
+      }
+    ];
 
-    STSClient.mockImplementation(() => ({
-      send: mockSend
-    }));
-
-    const result = await utils.getAWSAccountId({
-      region: 'ap-northeast-1',
-      accessKeyId: 'IKEAIOSFODNN7EXAMPLE',
-      secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-      sessionToken: 'AQoEXAMPLEH4aoAH0gNCAPyJxzrBlCFFxWNE1OPTgk5TthT...'
-    });
-
-    expect(result).toBe('123456789012');
-    expect(mockSend).toHaveBeenCalledTimes(1);
-  });
-
-  it('should return account ID when using scope credentials', async () => {
-    const { STSClient } = require('@aws-sdk/client-sts');
-    const mockSend = jest.fn().mockResolvedValue({
-      Account: '987654321098'
-    });
-
-    STSClient.mockImplementation(() => ({
-      send: mockSend
-    }));
-
-    const result = await utils.getAWSAccountId({
-      region: 'ap-northeast-1'
-    });
-
-    expect(result).toBe('987654321098');
-    expect(mockSend).toHaveBeenCalledTimes(1);
-  });
-
-  it('should throw error when STS call fails', async () => {
-    const { STSClient } = require('@aws-sdk/client-sts');
-    const mockSend = jest.fn().mockRejectedValue(new Error('STS Error'));
-
-    STSClient.mockImplementation(() => ({
-      send: mockSend
-    }));
-
-    await expect(
-      utils.getAWSAccountId({
-        region: 'ap-northeast-1'
-      })
-    ).rejects.toThrow('Failed to resolve AWS account ID: STS Error');
-  });
-
-  it('should throw error when account ID is not returned', async () => {
-    const { STSClient } = require('@aws-sdk/client-sts');
-    const mockSend = jest.fn().mockResolvedValue({
-      Account: undefined
-    });
-
-    STSClient.mockImplementation(() => ({
-      send: mockSend
-    }));
-
-    await expect(
-      utils.getAWSAccountId({
-        region: 'ap-northeast-1'
-      })
-    ).rejects.toThrow(
-      'Failed to resolve AWS account ID: Failed to get AWS account ID from STS'
+    const { SecretsManagerClient } = require('@aws-sdk/client-secrets-manager');
+    const mockSend = jest.fn().mockResolvedValue(
+      mockSecretResponses['projectname-dev-shared-shopify-vars']
     );
+
+    SecretsManagerClient.mockImplementation(() => ({
+      send: mockSend
+    }));
+
+    const result = await utils.fetchAllSecretsDataFromAWS(
+      entries,
+      testData.awsConfig
+    );
+
+    // Should make only 1 API call (for the single unique secret name)
+    expect(mockSend).toHaveBeenCalledTimes(1);
+
+    expect(result.arns).toEqual({
+      'projectname-dev-shared-shopify-vars': 'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-shopify-vars-xOr0aN'
+    });
+
+    expect(result.secretValues).toEqual({
+      'projectname-dev-shared-shopify-vars': {
+        SHOPIFY_PRODUCT_VARIANT_ABC: '19191919191919',
+        SHOPIFY_PRODUCT_VARIANT_DEF: '19191919191918',
+        SHOPIFY_PRODUCT_VARIANT_GHI: '19191919191917'
+      }
+    });
+  });
+
+  it('should handle multiple unique secret names', async () => {
+    const entries: ClassifiedEntry[] = [
+      {
+        key: 'APP_ENV',
+        value: 'projectname-dev-shared-vars',
+        type: 'aws_secret_reference' as const
+      },
+      {
+        key: 'DB_CONN',
+        value: 'projectname-dev-bfb',
+        type: 'aws_secret_reference' as const
+      }
+    ];
+
+    const { SecretsManagerClient } = require('@aws-sdk/client-secrets-manager');
+    const mockSend = jest.fn()
+      .mockResolvedValueOnce(mockSecretResponses['projectname-dev-shared-vars'])
+      .mockResolvedValueOnce(mockSecretResponses['projectname-dev-bfb']);
+
+    SecretsManagerClient.mockImplementation(() => ({
+      send: mockSend
+    }));
+
+    const result = await utils.fetchAllSecretsDataFromAWS(
+      entries,
+      testData.awsConfig
+    );
+
+    // Should make 2 API calls (one per unique secret name)
+    expect(mockSend).toHaveBeenCalledTimes(2);
+
+    expect(result.arns).toEqual({
+      'projectname-dev-shared-vars': 'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-vars-yPq1bM',
+      'projectname-dev-bfb': 'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-bfb-zRr2cN'
+    });
+
+    expect(result.secretValues).toEqual({
+      'projectname-dev-shared-vars': { 
+        APP_ENV: 'dev',
+        AUTH_SERVICE_ENDPOINT_PREFIX: '/auth-api'
+      },
+      'projectname-dev-bfb': { 
+        DATABASE_CONNECTION_STRING: 'mongodb://localhost:27017/test'
+      }
+    });
+  });
+
+  it('should throw error when secret fetch fails', async () => {
+    const entries: ClassifiedEntry[] = [
+      {
+        key: 'APP_ENV',
+        value: 'projectname-dev-shared-vars',
+        type: 'aws_secret_reference' as const
+      }
+    ];
+
+    const { SecretsManagerClient } = require('@aws-sdk/client-secrets-manager');
+    const mockSend = jest.fn().mockRejectedValue(new Error('AWS API Error'));
+
+    SecretsManagerClient.mockImplementation(() => ({
+      send: mockSend
+    }));
+
+    await expect(
+      utils.fetchAllSecretsDataFromAWS(entries, testData.awsConfig)
+    ).rejects.toThrow('Failed to fetch secret projectname-dev-shared-vars: AWS API Error');
+  });
+});
+
+describe('utils: buildResolvedEntriesFromSecretValues', () => {
+  it('should resolve secret references and keep direct values unchanged', () => {
+    const entries = testData.classifiedEntries;
+    const secretValues = testData.secretValues;
+
+    const result = utils.buildResolvedEntriesFromSecretValues(entries, secretValues);
+
+    expect(result).toEqual([
+      {
+        key: 'SHOPIFY_PRODUCT_VARIANT_ABC',
+        resolvedValue: '19191919191919',
+        originalValue: 'projectname-dev-shared-shopify-vars',
+        resolutionStatus: 'success'
+      },
+      {
+        key: 'AWS_REGION',
+        resolvedValue: 'ap-northeast-1',
+        originalValue: 'ap-northeast-1',
+        resolutionStatus: 'not_required'
+      }
+    ]);
+  });
+
+  it('should handle missing secret keys with failed status', () => {
+    const entries: ClassifiedEntry[] = [
+      {
+        key: 'MISSING_KEY',
+        value: 'projectname-dev-shared-shopify-vars',
+        type: 'aws_secret_reference' as const
+      }
+    ];
+
+    const secretValues = {
+      'projectname-dev-shared-shopify-vars': {
+        EXISTING_KEY: 'some-value'
+      }
+    };
+
+    const result = utils.buildResolvedEntriesFromSecretValues(entries, secretValues);
+
+    expect(result).toEqual([
+      {
+        key: 'MISSING_KEY',
+        resolvedValue: 'projectname-dev-shared-shopify-vars', // Fallback to secret name
+        originalValue: 'projectname-dev-shared-shopify-vars',
+        resolutionStatus: 'failed'
+      }
+    ]);
   });
 });
 
@@ -535,152 +619,3 @@ describe('utils: extractEntries (aws_secret_references format)', () => {
   });
 });
 
-describe('utils: resolvePartialReferencesToValues', () => {
-  beforeEach(() => {
-    testUtils.resetAllMocks();
-  });
-
-  it('should group entries by secret name and make minimal API calls', async () => {
-    const entries: ClassifiedEntry[] = [
-      {
-        key: 'APP_ENV',
-        value: 'projectname-dev-shared-vars:APP_ENVIRONMENT',
-        type: 'aws_secret_reference' as const
-      },
-      {
-        key: 'AUTH_PREFIX',
-        value: 'projectname-dev-shared-vars:AUTH_SERVICE_ENDPOINT_PREFIX',
-        type: 'aws_secret_reference' as const
-      },
-      {
-        key: 'DB_CONN',
-        value: 'projectname-dev-bfb:DATABASE_CONNECTION_STRING',
-        type: 'aws_secret_reference' as const
-      },
-      {
-        key: 'AWS_REGION',
-        value: 'ap-northeast-1',
-        type: 'direct_value' as const
-      },
-      {
-        key: 'NODE_ENV',
-        value: 'projectname-dev-shared-vars:NODE_ENV',
-        type: 'aws_secret_reference' as const
-      }
-    ];
-
-    // Mock responses for different secrets
-    const { SecretsManagerClient } = require('@aws-sdk/client-secrets-manager');
-    const mockSend = jest.fn();
-
-    // Set up sequential responses for different secrets
-    mockSend
-      .mockResolvedValueOnce({
-        SecretString: JSON.stringify({
-          APP_ENVIRONMENT: 'dev',
-          AUTH_SERVICE_ENDPOINT_PREFIX: '/auth-api',
-          NODE_ENV: 'production'
-        })
-      })
-      .mockResolvedValueOnce({
-        SecretString: JSON.stringify({
-          DATABASE_CONNECTION_STRING: 'mongodb://localhost:27017/test'
-        })
-      });
-
-    // Update the mock implementation
-    SecretsManagerClient.mockImplementation(() => ({
-      send: mockSend
-    }));
-
-    const result = await utils.resolvePartialReferencesToValues(
-      entries,
-      testData.awsConfig
-    );
-
-    // Should make only 2 API calls (one per secret name)
-    expect(mockSend).toHaveBeenCalledTimes(2);
-
-    // Verify all entries are resolved correctly
-    expect(result).toHaveLength(5);
-
-    // Secret references should be resolved
-    expect(result.find(r => r.key === 'APP_ENV')).toEqual({
-      key: 'APP_ENV',
-      resolvedValue: 'dev',
-      originalValue: 'projectname-dev-shared-vars:APP_ENVIRONMENT',
-      resolutionStatus: 'success'
-    });
-
-    expect(result.find(r => r.key === 'AUTH_PREFIX')).toEqual({
-      key: 'AUTH_PREFIX',
-      resolvedValue: '/auth-api',
-      originalValue: 'projectname-dev-shared-vars:AUTH_SERVICE_ENDPOINT_PREFIX',
-      resolutionStatus: 'success'
-    });
-
-    expect(result.find(r => r.key === 'DB_CONN')).toEqual({
-      key: 'DB_CONN',
-      resolvedValue: 'mongodb://localhost:27017/test',
-      originalValue: 'projectname-dev-bfb:DATABASE_CONNECTION_STRING',
-      resolutionStatus: 'success'
-    });
-
-    expect(result.find(r => r.key === 'NODE_ENV')).toEqual({
-      key: 'NODE_ENV',
-      resolvedValue: 'production',
-      originalValue: 'projectname-dev-shared-vars:NODE_ENV',
-      resolutionStatus: 'success'
-    });
-
-    // Direct values should remain unchanged
-    expect(result.find(r => r.key === 'AWS_REGION')).toEqual({
-      key: 'AWS_REGION',
-      resolvedValue: 'ap-northeast-1',
-      originalValue: 'ap-northeast-1',
-      resolutionStatus: 'not_required'
-    });
-  });
-
-  it('should handle AWS API failures gracefully', async () => {
-    const entries: ClassifiedEntry[] = [
-      {
-        key: 'APP_ENV',
-        value: 'projectname-dev-shared-vars:APP_ENVIRONMENT',
-        type: 'aws_secret_reference' as const
-      },
-      {
-        key: 'AUTH_PREFIX',
-        value: 'projectname-dev-shared-vars:AUTH_SERVICE_ENDPOINT_PREFIX',
-        type: 'aws_secret_reference' as const
-      }
-    ];
-
-    // Mock API failure
-    const { SecretsManagerClient } = require('@aws-sdk/client-secrets-manager');
-    const mockSend = jest.fn();
-    mockSend.mockRejectedValue(new Error('AWS API Error'));
-
-    // Update the mock implementation
-    SecretsManagerClient.mockImplementation(() => ({
-      send: mockSend
-    }));
-
-    const result = await utils.resolvePartialReferencesToValues(
-      entries,
-      testData.awsConfig
-    );
-
-    // Should make 1 API call (for the single secret name)
-    expect(mockSend).toHaveBeenCalledTimes(1);
-
-    // Should fall back to original values
-    expect(result).toHaveLength(2);
-    expect(result.find(r => r.key === 'APP_ENV')).toEqual({
-      key: 'APP_ENV',
-      resolvedValue: 'projectname-dev-shared-vars:APP_ENVIRONMENT',
-      originalValue: 'projectname-dev-shared-vars:APP_ENVIRONMENT',
-      resolutionStatus: 'failed'
-    });
-  });
-});
