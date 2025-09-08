@@ -47,44 +47,17 @@ export type AWSConfig = {
 };
 
 /**
- * AWS client configuration for Secrets Manager
- * @property region - AWS region
- * @property credentials - Optional AWS credentials
+ * AWS Secrets Manager SecretString
+ * Maps secret names to their parsed JSON key-value pairs
+ * @example
+ * {
+ *   "projectname-dev-shared-shopify-vars": {
+ *     "SHOPIFY_PRODUCT_VARIANT_ABC": "19191919191919",
+ *     "SHOPIFY_PRODUCT_VARIANT_DEF": "19191919191918"
+ *   }
+ * }
  */
-export type AWSClientConfig = {
-  region: string;
-  credentials?: {
-    accessKeyId: string;
-    secretAccessKey: string;
-    sessionToken?: string;
-  };
-};
-
-/**
- * aws secret resolution
- * @property key - Entry key (environment variable name)
- * @property secretKey - Actual AWS Secrets Manager key to look up
- * @property originalValue - Original secret reference string input
- */
-export type SecretEntry = {
-  key: string;
-  secretKey: string;
-  originalValue: string;
-};
-
-/**
- * Direct entry that doesn't need aws secret resolution
- * @property key - Environment variable name
- * @property value - Direct value (no resolution)
- * @property originalValue
- */
-export type DirectEntry = {
-  key: string;
-  value: string;
-  originalValue: string;
-};
-
-/**
- * Groups entries by aws secret category name
- */
-export type SecretGroups = Record<string, SecretEntry[]>;
+export type AWSSecretStringData = Record<
+  string,
+  Record<string, string | number | boolean>
+>;
