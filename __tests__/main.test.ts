@@ -24,19 +24,15 @@ jest.mock('fs', () => ({
 jest.mock('@aws-sdk/client-secrets-manager', () => ({
   SecretsManagerClient: jest.fn().mockImplementation(() => ({
     send: jest.fn().mockResolvedValue({
-      SecretString: JSON.stringify({ test: 'value' })
+      ARN: 'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-shopify-vars-xOr0aN',
+      SecretString: JSON.stringify({
+        SHOPIFY_PRODUCT_VARIANT_ABC: '19191919191919',
+        SHOPIFY_PRODUCT_VARIANT_DEF: '19191919191918',
+        SHOPIFY_PRODUCT_VARIANT_GHI: '19191919191917'
+      })
     })
   })),
   GetSecretValueCommand: jest.fn()
-}));
-
-jest.mock('@aws-sdk/client-sts', () => ({
-  STSClient: jest.fn().mockImplementation(() => ({
-    send: jest.fn().mockResolvedValue({
-      Account: '123456789012'
-    })
-  })),
-  GetCallerIdentityCommand: jest.fn()
 }));
 
 // Mock GitHub Actions core
@@ -368,11 +364,11 @@ describe('action', () => {
 
       await main.run();
 
-      // Should generate deployment config with resolved account ID
+      // Should generate deployment config with resolved ARN
       expect(core.setOutput).toHaveBeenCalledWith(
         'result',
         expect.stringContaining(
-          'arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:'
+          'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-shopify-vars-xOr0aN'
         )
       );
 
@@ -385,7 +381,7 @@ describe('action', () => {
         switch (name) {
           case 'aws_secret_references':
             return JSON.stringify({
-              DUPLICATE_KEY: 'projectname-dev:APP_ENV'
+              DUPLICATE_KEY: 'projectname-dev-shared-vars'
             });
           case 'json':
             return JSON.stringify({

@@ -17,11 +17,30 @@ export const mockSecretsManagerClient = {
 
 export const mockGetSecretValueCommand = jest.fn();
 
-export const mockSTSClient = {
-  send: jest.fn()
+// Mock AWS Secrets Manager responses
+export const mockSecretResponses = {
+  'projectname-dev-shared-shopify-vars': {
+    ARN: 'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-shopify-vars-xOr0aN',
+    SecretString: JSON.stringify({
+      SHOPIFY_PRODUCT_VARIANT_ABC: '19191919191919',
+      SHOPIFY_PRODUCT_VARIANT_DEF: '19191919191918',
+      SHOPIFY_PRODUCT_VARIANT_GHI: '19191919191917'
+    })
+  },
+  'projectname-dev-shared-vars': {
+    ARN: 'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-vars-yPq1bM',
+    SecretString: JSON.stringify({
+      APP_ENV: 'dev',
+      AUTH_SERVICE_ENDPOINT_PREFIX: '/auth-api'
+    })
+  },
+  'projectname-dev-bfb': {
+    ARN: 'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-bfb-zRr2cN',
+    SecretString: JSON.stringify({
+      DATABASE_CONNECTION_STRING: 'mongodb://localhost:27017/test'
+    })
+  }
 };
-
-export const mockGetCallerIdentityCommand = jest.fn();
 
 export const testData = {
   entries: {
@@ -34,8 +53,8 @@ export const testData = {
     withEmpty: { key: 'EMPTY_KEY', value: '' }
   },
   secrets: {
-    single: 'projectname-dev:APP_ENV',
-    multiple: ['projectname-dev:APP_ENV', 'projectname-dev:DATABASE_URL']
+    single: 'projectname-dev-shared-vars',
+    multiple: ['projectname-dev-shared-vars', 'projectname-dev-bfb']
   },
   awsConfig: {
     region: 'ap-northeast-1'
@@ -45,25 +64,51 @@ export const testData = {
     accessKeyId: 'IKEAIOSFODNN7EXAMPLE',
     secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
     sessionToken: 'AQoEXAMPLEH4aoAH0gNCAPyJxzrBlCFFxWNE1OPTgk5TthT...'
+  },
+  classifiedEntries: [
+    {
+      key: 'SHOPIFY_PRODUCT_VARIANT_ABC',
+      value: 'projectname-dev-shared-shopify-vars',
+      type: 'aws_secret_reference' as const
+    },
+    {
+      key: 'AWS_REGION',
+      value: 'ap-northeast-1',
+      type: 'direct_value' as const
+    }
+  ],
+  secretValues: {
+    'projectname-dev-shared-shopify-vars': {
+      SHOPIFY_PRODUCT_VARIANT_ABC: '19191919191919',
+      SHOPIFY_PRODUCT_VARIANT_DEF: '19191919191918'
+    }
+  },
+  arns: {
+    'projectname-dev-shared-shopify-vars':
+      'arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-shopify-vars-xOr0aN'
   }
 };
 
 export const formatterTestData = {
   secretManagerReferenceEntries: [
     {
-      key: 'APP_ENVIRONMENT',
-      value: 'projectname-dev-shared-vars:APP_ENVIRONMENT',
-      type: 'aws_secret_reference' as const
-    },
-    { key: 'NODE_ENV', value: 'development', type: 'direct_value' as const },
-    {
-      key: 'DATABASE_URL',
-      value: 'projectname-dev-bfb:DATABASE_CONNECTION_STRING',
+      key: 'SHOPIFY_PRODUCT_VARIANT_ABC',
+      value: 'projectname-dev-shared-shopify-vars',
       type: 'aws_secret_reference' as const
     },
     {
       key: 'AWS_REGION',
       value: 'ap-northeast-1',
+      type: 'direct_value' as const
+    },
+    {
+      key: 'SHOPIFY_PRODUCT_VARIANT_DEF',
+      value: 'projectname-dev-shared-shopify-vars',
+      type: 'aws_secret_reference' as const
+    },
+    {
+      key: 'NODE_ENV',
+      value: 'development',
       type: 'direct_value' as const
     }
   ],
@@ -80,7 +125,8 @@ export const mockInputPatterns = {
   },
   directValuesAndSecretReferences: {
     aws_secret_references: JSON.stringify({
-      APP_ENVIRONMENT: 'projectname-dev-shared-vars:APP_ENVIRONMENT'
+      SHOPIFY_PRODUCT_VARIANT_ABC: 'projectname-dev-shared-shopify-vars',
+      SHOPIFY_PRODUCT_VARIANT_DEF: 'projectname-dev-shared-shopify-vars'
     }),
     json: JSON.stringify({
       AWS_REGION: 'ap-northeast-1',
@@ -116,7 +162,5 @@ export const testUtils = {
     mockFs.promises.writeFile.mockReset();
     mockSecretsManagerClient.send.mockReset();
     mockGetSecretValueCommand.mockReset();
-    mockSTSClient.send.mockReset();
-    mockGetCallerIdentityCommand.mockReset();
   }
 };

@@ -5,16 +5,40 @@ import {
   extractEntriesDefault,
   extractEntries,
   getOutputPath,
-  resolvePartialReferencesToValues,
-  getAWSAccountId,
-  validateAWSCredentials
+  buildResolvedEntriesFromSecretValues,
+  validateAWSCredentials,
+  fetchAllSecretsDataFromAWS
 } from './utils';
 import {
   ebextensionsEnvVarsSecretManagerFormatter,
   ebextensionsEnvVarsDefaultFormatter
 } from './formatters';
-import { Entry, ClassifiedEntry, AWSConfig } from './types';
+import {
+  Entry,
+  ClassifiedEntry,
+  AWSConfig,
+  AWSSecretStringData
+} from './types';
 
+/**
+ *
+ * @example
+ * Input:
+ * aws_secret_references: '{"SHOPIFY_PRODUCT_VARIANT_ABC": "projectname-dev-shared-shopify-vars"}'
+ * json: '{"AWS_REGION": "ap-northeast-1"}'
+ * aws_region: "ap-northeast-1"
+ * rendered_file_path: "."
+ *
+ * Process:
+ * 1. Extract and classify entries (aws secret name references + direct values)
+ * 2. Fetch secrets from AWS (get ARNs and values)
+ * 3. Generate deployment config (with ARN references)
+ * 4. Generate test config (with resolved values)
+ *
+ * Output files:
+ * - .ebextensions/envvars.config (deployment - with ARNs)
+ * - .ebextensions/envvars-test.config (testing - with actual values)
+ */
 export async function run() {
   try {
     const directory = core.getInput('directory') || '.ebextensions';
@@ -89,43 +113,46 @@ export async function run() {
 
     // Generate deployment config based on format
     let output: string;
+    let secretValues: AWSSecretStringData | undefined;
+
     if (isLegacyFormat) {
       // Legacy format: use default formatter - direct values
       output = ebextensionsEnvVarsDefaultFormatter(entries);
     } else {
       // use SecretManager formatter for AWS Secrets Manager ARNs
-      // Resolve AWS account ID for Secrets Manager ARNs
       // AWS SDK automatically falls back to scope credentials when credentials are not provided
-      let resolvedAccountId: string;
-      try {
-        const credentialType =
-          awsAccessKeyId && awsSecretAccessKey && awsSessionToken
-            ? 'explicit'
-            : 'scope';
-        core.debug(
-          `Using ${credentialType} AWS credentials to resolve account ID from STS...`
-        );
-
-        const awsConfig: AWSConfig = {
-          region: awsRegion,
-          accessKeyId: awsAccessKeyId,
-          secretAccessKey: awsSecretAccessKey,
-          sessionToken: awsSessionToken
-        };
-
-        resolvedAccountId = await getAWSAccountId(awsConfig);
-        core.debug(`Resolved AWS account ID`);
-      } catch (error) {
-        throw new Error(
-          `Failed to resolve AWS account ID: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-      }
+      const credentialType =
+        awsAccessKeyId && awsSecretAccessKey && awsSessionToken
+          ? 'explicit'
+          : 'scope';
+      core.debug(
+        `Using ${credentialType} AWS credentials for Secrets Manager ARN resolution...`
+      );
 
       const classifiedEntries = entries as ClassifiedEntry[];
+      const awsConfig: AWSConfig = {
+        region: awsRegion,
+        accessKeyId: awsAccessKeyId,
+        secretAccessKey: awsSecretAccessKey,
+        sessionToken: awsSessionToken
+      };
+
+      // Filter only secret name reference entries for fetching respective Secrets Data from AWS
+      const secretReferenceEntries = classifiedEntries.filter(
+        entry => entry.type === 'aws_secret_reference'
+      );
+
+      // Fetch secrets data from AWS
+      const result = await fetchAllSecretsDataFromAWS(
+        secretReferenceEntries,
+        awsConfig
+      );
+
+      secretValues = result.secretValues;
+      // format using the pre-fetched data
       output = ebextensionsEnvVarsSecretManagerFormatter(
         classifiedEntries,
-        awsRegion,
-        resolvedAccountId
+        result.arns
       );
     }
 
@@ -135,18 +162,10 @@ export async function run() {
 
     // Generate test config if requested (has rendered_file_path)
     if (renderedFilePath && renderedFilePath.trim() !== '' && !isLegacyFormat) {
-      try {
-        const awsConfig: AWSConfig = {
-          region: awsRegion,
-          accessKeyId: awsAccessKeyId,
-          secretAccessKey: awsSecretAccessKey,
-          sessionToken: awsSessionToken
-        };
-
-        // Resolve aws secret references to actual values for testing
-        const resolvedEntries = await resolvePartialReferencesToValues(
+      if (secretValues) {
+        const resolvedEntries = buildResolvedEntriesFromSecretValues(
           entries as ClassifiedEntry[],
-          awsConfig
+          secretValues
         );
 
         // Convert resolved entries to the format expected by the formatter
@@ -169,15 +188,9 @@ export async function run() {
         core.info(`Generated both files:
           - Deployment config: ${outputPath} (with AWS Secrets Manager references)
           - Test config: ${testConfigPath} (with actual resolved values for testing)`);
-      } catch (error) {
-        core.debug(
-          `Failed to resolve secrets for test config: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-        core.debug(
-          'Generating test config with unresolved references (testing may fail)'
-        );
-
-        // Fallback: generate test config with unresolved references
+      } else {
+        // This shouldn't happen, but fallback just in case
+        core.debug('No secret values available for test config generation');
         const testConfigOutput = ebextensionsEnvVarsDefaultFormatter(
           entries as Entry[]
         );

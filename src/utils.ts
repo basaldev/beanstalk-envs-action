@@ -2,13 +2,12 @@ import {
   SecretsManagerClient,
   GetSecretValueCommand
 } from '@aws-sdk/client-secrets-manager';
-import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import {
   Entry,
   ClassifiedEntry,
   ResolvedEntry,
   AWSConfig,
-  SecretGroups
+  AWSSecretStringData
 } from './types';
 import * as core from '@actions/core';
 import * as path from 'path';
@@ -34,48 +33,6 @@ export function validateAWSCredentials(
   if (providedCreds.length > 0 && providedCreds.length < 3) {
     throw new Error(
       `Partial AWS credentials provided: ${providedCreds.join(', ')}. All three credentials must be provided together, or leave all three empty to use scope credentials.`
-    );
-  }
-}
-
-/**
- * Get AWS account ID using STS GetCallerIdentity
- * @param awsConfig - AWS configuration
- * @returns Promise<string> - AWS account ID
- */
-export async function getAWSAccountId(awsConfig: AWSConfig): Promise<string> {
-  // Create STS client with provided credentials or fall back to scope
-  const clientConfig: {
-    region: string;
-    credentials?: {
-      accessKeyId: string;
-      secretAccessKey: string;
-      sessionToken?: string;
-    };
-  } = { region: awsConfig.region };
-
-  if (awsConfig.accessKeyId && awsConfig.secretAccessKey) {
-    clientConfig.credentials = {
-      accessKeyId: awsConfig.accessKeyId,
-      secretAccessKey: awsConfig.secretAccessKey,
-      sessionToken: awsConfig.sessionToken
-    };
-  }
-
-  const stsClient = new STSClient(clientConfig);
-
-  try {
-    const command = new GetCallerIdentityCommand({});
-    const response = await stsClient.send(command);
-
-    if (!response.Account) {
-      throw new Error('Failed to get AWS account ID from STS');
-    }
-
-    return response.Account;
-  } catch (error) {
-    throw new Error(
-      `Failed to resolve AWS account ID: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }
@@ -127,11 +84,24 @@ export function extractEntriesDefault(
 }
 
 /**
- * Get entries from aws secrets partial references, direct values, and YAML inputs
+ * Get entries from aws secret name references, direct values, and YAML inputs
+ *
+ * @example
+ * Input:
+ * awsSecretReferencesInput: '{"SHOPIFY_PRODUCT_VARIANT_ABC": "projectname-dev-shared-shopify-vars"}'
+ * jsonInput: '{"AWS_REGION": "ap-northeast-1", "NODE_ENV": "production"}'
+ *
+ * Output:
+ * [
+ *   { key: "SHOPIFY_PRODUCT_VARIANT_ABC", value: "projectname-dev-shared-shopify-vars", type: "aws_secret_reference" },
+ *   { key: "AWS_REGION", value: "ap-northeast-1", type: "direct_value" },
+ *   { key: "NODE_ENV", value: "production", type: "direct_value" }
+ * ]
+ *
  * @returns array of classified entries
  */
 export function extractEntries(
-  awsSecretReferencesInput: string, // AWS secret reference strings (e.g., "projectname-dev-shared-vars:APP_ENVIRONMENT")
+  awsSecretReferencesInput: string, // AWS secret name reference strings (e.g., "projectname-dev-shared-vars")
   jsonInput: string, // direct values entries
   processEnvs: NodeJS.ProcessEnv,
   shouldSort = false,
@@ -255,33 +225,13 @@ export function sortEntries<T extends Entry | ClassifiedEntry>(
 }
 
 /**
- * Resolve AWS Secrets Manager references to actual values
- * Make AWS API call per secret name
- *
- * @example
- * Input entries:
- * [
- *   { key: "APP_ENV", value: "projectname-dev-shared-vars:APP_ENVIRONMENT", type: "aws_secret_reference" },
- *   { key: "CUSTOM_SHOPIFY_STORE_DOMAIN", value: "projectname-dev-shared-shopify-vars:SHOPIFY_STORE_CUSTOM_DOMAIN", type: "aws_secret_reference" },
- *   { key: "AWS_REGION", value: "ap-northeast-1", type: "direct_value" }  // Direct value
- * ]
- *
- * Output resolved entries:
- * [
- *   { key: "APP_ENV", resolvedValue: "dev", resolutionStatus: "success" },
- *   { key: "CUSTOM_SHOPIFY_STORE_DOMAIN", resolvedValue: "dev-myshop.summercorp.co.jp", resolutionStatus: "success" },
- *   { key: "AWS_REGION", resolvedValue: "ap-northeast-1", resolutionStatus: "not_required" }
- * ]
- *
- * @param entries - Array of classified entries with explicit types
+ * Create AWS Secrets Manager client with provided credentials or fall back to scope
  * @param awsConfig - AWS configuration
- * @returns Array of resolved entries with actual values
+ * @returns Configured SecretsManagerClient
  */
-export async function resolvePartialReferencesToValues(
-  entries: ClassifiedEntry[],
+function createSecretsManagerClient(
   awsConfig: AWSConfig
-): Promise<ResolvedEntry[]> {
-  // Create AWS client with provided credentials or fall back to scope
+): SecretsManagerClient {
   const clientConfig: {
     region: string;
     credentials?: {
@@ -299,33 +249,175 @@ export async function resolvePartialReferencesToValues(
     };
   }
 
-  const client = new SecretsManagerClient(clientConfig);
+  return new SecretsManagerClient(clientConfig);
+}
+
+/**
+ * Fetch both ARN and data for a secret name from AWS Secrets Manager
+ *
+ * @example
+ * Input:
+ * secretName: "projectname-dev-shared-shopify-vars"
+ *
+ * Output:
+ * {
+ *   arn: "arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-shopify-vars-xOr0aN",
+ *   secretValues: {
+ *     "SHOPIFY_PRODUCT_VARIANT_ABC": "19191919191919",
+ *     "SHOPIFY_PRODUCT_VARIANT_DEF": "19191919191918"
+ *   }
+ * }
+ *
+ * @param client - AWS Secrets Manager client
+ * @param secretName - Name of the secret to fetch
+ * @returns Object containing both ARN and parsed secret values
+ */
+async function fetchSecretARNAndData(
+  client: SecretsManagerClient,
+  secretName: string
+): Promise<{
+  arn: string;
+  secretValues: Record<string, string | number | boolean>;
+}> {
+  const command = new GetSecretValueCommand({
+    SecretId: secretName
+  });
+  const response = await client.send(command);
+
+  if (!response.ARN) {
+    throw new Error(`Secret ${secretName} has no ARN`);
+  }
+
+  if (!response.SecretString) {
+    throw new Error(`Secret ${secretName} has no string value`);
+  }
+
+  const secretValues = JSON.parse(response.SecretString);
+
+  return {
+    arn: response.ARN,
+    secretValues
+  };
+}
+
+/**
+ * Fetch secrets data from AWS for processing
+ *
+ * @example
+ * Input:
+ * secretReferenceEntries: [
+ *   { key: "SHOPIFY_PRODUCT_VARIANT_ABC", value: "projectname-dev-shared-shopify-vars", type: "aws_secret_reference" },
+ *   { key: "SHOPIFY_PRODUCT_VARIANT_DEF", value: "projectname-dev-shared-shopify-vars", type: "aws_secret_reference" }
+ * ]
+ *
+ * Output:
+ * {
+ *   arns: {
+ *     "projectname-dev-shared-shopify-vars": "arn:aws:secretsmanager:ap-northeast-1:112233445566:secret:projectname-dev-shared-shopify-vars-xOr0aN"
+ *   },
+ *   secretValues: {
+ *     "projectname-dev-shared-shopify-vars": {
+ *       "SHOPIFY_PRODUCT_VARIANT_ABC": "19191919191919",
+ *       "SHOPIFY_PRODUCT_VARIANT_DEF": "19191919191918"
+ *     }
+ *   }
+ * }
+ *
+ * @param secretReferenceEntries
+ * - Array of secret name references (entries with type 'aws_secret_reference') only
+ * @param awsConfig - AWS configuration
+ * @returns Object with ARNs and secret values for formatting
+ */
+export async function fetchAllSecretsDataFromAWS(
+  secretReferenceEntries: ClassifiedEntry[],
+  awsConfig: AWSConfig
+): Promise<{
+  arns: Record<string, string>;
+  secretValues: AWSSecretStringData;
+}> {
+  const client = createSecretsManagerClient(awsConfig);
+
+  // Get unique secret names
+  const secretNames = new Set<string>();
+  for (const entry of secretReferenceEntries) {
+    secretNames.add(String(entry.value));
+  }
+
+  const arns: Record<string, string> = {};
+  const secretValues: AWSSecretStringData = {};
+
+  // Fetch for each secret
+  for (const secretName of secretNames) {
+    try {
+      const result = await fetchSecretARNAndData(client, secretName);
+      arns[secretName] = result.arn;
+      secretValues[secretName] = result.secretValues;
+    } catch (error) {
+      throw new Error(
+        `Failed to fetch secret ${secretName}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  return { arns, secretValues };
+}
+
+/**
+ * Build resolved entries from secret values for test config generation
+ *
+ * @example
+ * Input:
+ * entries: [
+ *   { key: "SHOPIFY_PRODUCT_VARIANT_ABC", value: "projectname-dev-shared-shopify-vars", type: "aws_secret_reference" },
+ *   { key: "AWS_REGION", value: "ap-northeast-1", type: "direct_value" }
+ * ]
+ * secretValues: {
+ *   "projectname-dev-shared-shopify-vars": {
+ *     "SHOPIFY_PRODUCT_VARIANT_ABC": "19191919191919"
+ *   }
+ * }
+ *
+ * Output:
+ * [
+ *   { key: "SHOPIFY_PRODUCT_VARIANT_ABC", resolvedValue: "19191919191919", originalValue: "projectname-dev-shared-shopify-vars", resolutionStatus: "success" },
+ *   { key: "AWS_REGION", resolvedValue: "ap-northeast-1", originalValue: "ap-northeast-1", resolutionStatus: "not_required" }
+ * ]
+ *
+ * @param entries - Array of classified entries
+ * @param secretValues - Already-fetched secret values from formatter
+ * @returns Array of resolved entries with actual values
+ */
+export function buildResolvedEntriesFromSecretValues(
+  entries: ClassifiedEntry[],
+  secretValues: AWSSecretStringData
+): ResolvedEntry[] {
   const resolvedEntries: ResolvedEntry[] = [];
 
-  // Group entries by secret name
-  // Example: { "projectname-dev-shared-vars": [SecretEntry1, SecretEntry2], "projectname-dev-shared-shopify-vars": [SecretEntry3] }
-  const secretGroups: SecretGroups = {};
-
-  // Categorize and group entries by type
-  // aws_secret_reference or direct_value
   for (const entry of entries) {
     if (entry.type === 'aws_secret_reference') {
-      const secretReferenceString = String(entry.value);
-      const [secretName, secretKey] = secretReferenceString.split(':');
+      const secretName = String(entry.value);
+      const secretValuesForSecret = secretValues[secretName];
+      const value = secretValuesForSecret?.[entry.key];
 
-      // Initialize array for this secret name if it doesn't exist
-      if (!secretGroups[secretName]) {
-        secretGroups[secretName] = [];
+      if (value !== undefined) {
+        resolvedEntries.push({
+          key: entry.key,
+          resolvedValue: String(value), // Actual value from AWS
+          originalValue: secretName, // Original secret name
+          resolutionStatus: 'success'
+        });
+      } else {
+        // Secret key not found in the secret
+        core.debug(`Secret key ${entry.key} not found in secret ${secretName}`);
+        resolvedEntries.push({
+          key: entry.key,
+          resolvedValue: secretName, // Fallback to secret name
+          originalValue: secretName,
+          resolutionStatus: 'failed' // Key not found
+        });
       }
-
-      // Add to the group for this secret name
-      secretGroups[secretName].push({
-        key: entry.key, // Environment variable name (e.g., "APP_ENV")
-        secretKey, // Key to look up in AWS secret (e.g., "APP_ENVIRONMENT")
-        originalValue: secretReferenceString // Original reference string (e.g., "projectname-dev-shared-vars:APP_ENVIRONMENT")
-      });
     } else {
-      // Direct value - no resolution needed, add directly to resolved entries
+      // Direct value - no resolution needed
       resolvedEntries.push({
         key: entry.key,
         resolvedValue: String(entry.value),
@@ -335,106 +427,5 @@ export async function resolvePartialReferencesToValues(
     }
   }
 
-  // Resolve secrets by making API call per secret name
-  const secretNames = Object.keys(secretGroups);
-  for (let secretIndex = 0; secretIndex < secretNames.length; secretIndex++) {
-    const secretName = secretNames[secretIndex];
-    const secretEntries = secretGroups[secretName];
-
-    try {
-      core.debug(
-        `Resolving secret ${secretName} for ${secretEntries.length} keys...`
-      );
-
-      // API call for current secret name
-      // Example: get all keys for secretName = "projectname-dev-shared-vars"
-      const secretData = await fetchSecretData(client, secretName);
-
-      // Extract all requested keys from the same secret response
-      for (
-        let entryIndex = 0;
-        entryIndex < secretEntries.length;
-        entryIndex++
-      ) {
-        const entry = secretEntries[entryIndex];
-        const value = secretData[entry.secretKey];
-
-        if (value !== undefined) {
-          resolvedEntries.push({
-            key: entry.key,
-            resolvedValue: String(value), // Actual value from AWS (e.g., "dev")
-            originalValue: entry.originalValue, // Original reference string (e.g., "projectname-dev-shared-vars:APP_ENVIRONMENT")
-            resolutionStatus: 'success' // Resolution success
-          });
-          core.debug(
-            `Resolved ${entry.key}: ${entry.originalValue} -> [RESOLVED]`
-          );
-        } else {
-          // Secret key not found in the secret
-          core.debug(
-            `Secret key ${entry.secretKey} not found in secret ${secretName} for entry ${entry.key}`
-          );
-          resolvedEntries.push({
-            key: entry.key,
-            resolvedValue: entry.originalValue, // Fallback to original reference
-            originalValue: entry.originalValue,
-            resolutionStatus: 'failed' // Key not found
-          });
-        }
-      }
-    } catch (error) {
-      // AWS API call failed in general
-      core.debug(
-        `Failed to resolve secret ${secretName}: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-
-      // Fall back to original values for all entries in this secret
-      for (
-        let entryIndex = 0;
-        entryIndex < secretEntries.length;
-        entryIndex++
-      ) {
-        const entry = secretEntries[entryIndex];
-        resolvedEntries.push({
-          key: entry.key,
-          resolvedValue: entry.originalValue, // Fallback to original reference
-          originalValue: entry.originalValue,
-          resolutionStatus: 'failed' // API call failed
-        });
-      }
-    }
-  }
-
   return resolvedEntries;
-}
-
-/**
- * Fetch secret data from AWS Secrets Manager
- * -one call per secret name
- *
- * @example
- * Input: secretName = "projectname-dev-shared-vars"
- * Output: { "APP_ENVIRONMENT": "dev", "AUTH_SERVICE_ENDPOINT_PREFIX": "/auth-api", ... }
- *
- * @param client - AWS Secrets Manager client
- * @param secretName - Name of the secret to fetch
- * @returns Parsed secret data object with key-value pairs
- */
-async function fetchSecretData(
-  client: SecretsManagerClient,
-  secretName: string
-): Promise<Record<string, string | number | boolean>> {
-  const command = new GetSecretValueCommand({
-    SecretId: secretName
-  });
-  const response = await client.send(command);
-  if (!response.SecretString) {
-    throw new Error(`Secret ${secretName} has no string value`);
-  }
-
-  // Parse the secret JSON string into a JavaScript object
-  // Example: '{"AUTH_SERVICE_ENDPOINT_PREFIX":"/auth-api","APP_ENVIRONMENT":"dev",...}'
-  // becomes: { AUTH_SERVICE_ENDPOINT_PREFIX: "/auth-api", APP_ENVIRONMENT: "dev", ... }
-  const secretData = JSON.parse(response.SecretString);
-  return secretData;
 }
