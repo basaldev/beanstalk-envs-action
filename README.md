@@ -3,9 +3,10 @@
 ![CI](https://github.com/basaldev/beanstalk-envs-action/actions/workflows/ci.yml/badge.svg)
 [![Coverage](./badges/coverage.svg)](./badges/coverage.svg)
 
-Builds Beanstalk config files from direct input, AWS Secrets Manager references, or both. 
-Generates AWS Secrets Manager ARN references for secure environment variable management in Elastic Beanstalk.
-Can also output a local test config file with resolved values for testing before deployment.
+Builds Beanstalk config files from direct input, AWS Secrets Manager references,
+or both. Generates AWS Secrets Manager ARN references for secure environment
+variable management in Elastic Beanstalk. Can also output a local test config
+file with resolved values for testing before deployment.
 
 ## Quick Start
 
@@ -48,14 +49,16 @@ json: '{"ENVIRONMENT": "production", "DEBUG": "false"}'
 ### AWS Secrets Manager Only
 
 ```yaml
-aws_secret_references: '{"DB_PASSWORD": "myapp-secrets", "API_KEY": "myapp-secrets"}'
+aws_secret_references:
+  '{"DB_PASSWORD": "myapp-secrets", "API_KEY": "myapp-secrets"}'
 aws_region: 'us-east-1'
 ```
 
 ### Both Direct + AWS Secrets Manager
 
 ```yaml
-aws_secret_references: '{"DB_PASSWORD": "myapp-secrets", "API_KEY": "myapp-secrets"}'
+aws_secret_references:
+  '{"DB_PASSWORD": "myapp-secrets", "API_KEY": "myapp-secrets"}'
 json: '{"ENVIRONMENT": "production", "DEBUG": "false"}'
 aws_region: 'us-east-1'
 ```
@@ -70,9 +73,11 @@ rendered_file_path: '.'
 
 ### AWS Secrets Manager Integration
 
-The action fetches the full ARN from AWS Secrets Manager and uses it in the Beanstalk configuration:
+The action fetches the full ARN from AWS Secrets Manager and uses it in the
+Beanstalk configuration:
 
 **Input Format:**
+
 ```json
 {
   "API_KEY": "myapp-secrets",
@@ -81,6 +86,7 @@ The action fetches the full ARN from AWS Secrets Manager and uses it in the Bean
 ```
 
 **Generated Output:**
+
 ```yaml
 option_settings:
   - namespace: aws:elasticbeanstalk:application:environmentsecrets
@@ -94,7 +100,8 @@ option_settings:
 ## Output
 
 - `.ebextensions/envvars.config` - Beanstalk deployment config
-- Optional test config file `envvars-test.config` (when `rendered_file_path` is provided)
+- Optional test config file `envvars-test.config` (when `rendered_file_path` is
+  provided)
   - Test config with resolved values for local testing
 
 ## License
